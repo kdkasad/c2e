@@ -11,17 +11,70 @@
  * not, see <https://www.gnu.org/licenses/>.
  */
 
-pub fn add(left: u64, right: u64) -> u64 {
-    left + right
+#![no_std]
+
+// Enable use of types which require heap memory.
+extern crate alloc;
+
+use chumsky::{
+    prelude::*,
+    text::{ident, keyword},
+};
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct Declaration<'src> {
+    pub base_type: PrimitiveType,
+    pub declarator: Declarator<'src>,
+}
+
+// Convert from a tuple `(PrimitiveType, Declarator)` to a `Declaration`
+impl<'src> From<(PrimitiveType, Declarator<'src>)> for Declaration<'src> {
+    fn from((base_type, declarator): (PrimitiveType, Declarator<'src>)) -> Self {
+        Declaration {
+            base_type,
+            declarator,
+        }
+    }
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum PrimitiveType {
+    Void,
+    Char,
+    Int,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub enum Declarator<'src> {
+    Ident(&'src str),
+}
+
+pub fn parser<'src>()
+-> impl Parser<'src, &'src str, Declaration<'src>, chumsky::extra::Err<Rich<'src, char>>> {
+    let primitive_type = choice((
+        keyword("void").to(PrimitiveType::Void),
+        keyword("char").to(PrimitiveType::Char),
+        keyword("int").to(PrimitiveType::Int),
+    ))
+    .padded();
+
+    let declarator = ident().map(Declarator::Ident).padded();
+
+    primitive_type.then(declarator).map(Declaration::from)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use pretty_assertions::assert_eq;
+
     #[test]
-    fn it_works() {
-        let result = add(2, 2);
-        assert_eq!(result, 4);
+    fn test_basic_int_var() {
+        let expected = Declaration {
+            base_type: PrimitiveType::Int,
+            declarator: Declarator::Ident("myvar123"),
+        };
+        assert_eq!(expected, parser().parse("int myvar123").unwrap());
     }
 }

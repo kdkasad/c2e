@@ -75,7 +75,9 @@ pub enum Declarator<'src> {
 #[must_use]
 pub fn primitive_type_parser<'src>(
 ) -> impl Parser<'src, &'src str, PrimitiveType, chumsky::extra::Err<Rich<'src, char>>> {
-    /// Macro to generate choices from a nicer syntax
+    /// Macro to generate choices from a nicer syntax.
+    /// Turns something like `unsigned long int` into
+    /// `keyword("unsigned").padded().then(keyword("long").padded()).then(keyword("int").padded)`.
     macro_rules! gen_choices {
         ( $( $first:ident $($more:ident)* , )* ) => {
             choice(( $(
@@ -301,7 +303,6 @@ mod tests {
         };
         assert_eq!(expected, parser().parse("int (*foo)[10]").unwrap());
     }
-
 
     #[test]
     fn test_multi_dimen_array_and_ptr() {

@@ -16,12 +16,13 @@
 // Enable use of types which require heap memory.
 extern crate alloc;
 
+use alloc::boxed::Box;
 use chumsky::{
     prelude::*,
     text::{ident, keyword},
 };
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declaration<'src> {
     pub base_type: PrimitiveType,
     pub declarator: Declarator<'src>,
@@ -44,9 +45,10 @@ pub enum PrimitiveType {
     Int,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Declarator<'src> {
     Ident(&'src str),
+    Ptr(Box<Declarator<'src>>),
 }
 
 pub fn parser<'src>()
@@ -58,7 +60,18 @@ pub fn parser<'src>()
     ))
     .padded();
 
-    let declarator = ident().map(Declarator::Ident).padded();
+    let declarator = recursive(|declarator| {
+        choice((
+            // Identifier
+            ident().map(Declarator::Ident),
+            // Pointer declarator
+            just('*')
+                .ignore_then(declarator)
+                .map(Box::new)
+                .map(Declarator::Ptr),
+        ))
+        .padded()
+    });
 
     primitive_type.then(declarator).map(Declaration::from)
 }
@@ -69,12 +82,32 @@ mod tests {
 
     use pretty_assertions::assert_eq;
 
+    fn ptr(val: Declarator) -> Declarator {
+        Declarator::Ptr(Box::new(val))
+    }
+
+    fn ident(val: &str) -> Declarator {
+        Declarator::Ident(val)
+    }
+
     #[test]
     fn test_basic_int_var() {
         let expected = Declaration {
             base_type: PrimitiveType::Int,
-            declarator: Declarator::Ident("myvar123"),
+            declarator: ident("myvar123"),
         };
         assert_eq!(expected, parser().parse("int myvar123").unwrap());
+    }
+
+    #[test]
+    fn test_basic_int_ptr_var() {
+        let expected = Declaration {
+            base_type: PrimitiveType::Int,
+            declarator: ptr(ident("p")),
+        };
+        let cases = ["int *p", "int*p", "int* p", "int *\np"];
+        for case in cases {
+            assert_eq!(expected, parser().parse(case).unwrap());
+        }
     }
 }

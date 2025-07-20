@@ -21,7 +21,7 @@ use core::{fmt::Display, str::FromStr};
 use alloc::boxed::Box;
 use chumsky::{
     prelude::*,
-    text::{ident, keyword},
+    text::{ident, int, keyword},
 };
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -68,12 +68,13 @@ impl Display for PrimitiveType {
 pub enum Declarator<'src> {
     Ident(&'src str),
     Ptr(Box<Declarator<'src>>),
+    Array(Box<Declarator<'src>>, Option<usize>),
 }
 
 /// From <https://www.open-std.org/jtc1/sc22/WG14/www/docs/n1256.pdf> section 6.7.2.
 #[must_use]
-pub fn primitive_type_parser<'src>()
--> impl Parser<'src, &'src str, PrimitiveType, chumsky::extra::Err<Rich<'src, char>>> {
+pub fn primitive_type_parser<'src>(
+) -> impl Parser<'src, &'src str, PrimitiveType, chumsky::extra::Err<Rich<'src, char>>> {
     /// Macro to generate choices from a nicer syntax
     macro_rules! gen_choices {
         ( $( $first:ident $($more:ident)* , )* ) => {
@@ -128,8 +129,8 @@ pub fn primitive_type_parser<'src>()
     .padded()
 }
 
-pub fn parser<'src>()
--> impl Parser<'src, &'src str, Declaration<'src>, chumsky::extra::Err<Rich<'src, char>>> {
+pub fn parser<'src>(
+) -> impl Parser<'src, &'src str, Declaration<'src>, chumsky::extra::Err<Rich<'src, char>>> {
     let primitive_type = primitive_type_parser();
     let r#type = choice((
         // Primitive type
@@ -142,18 +143,30 @@ pub fn parser<'src>()
     ));
 
     let declarator = recursive(|declarator| {
-        choice((
-            // Identifier
+        // Parses a declarator atom: either an identifier or parenthesized declarator
+        let atom = choice((
             ident().map(Declarator::Ident),
-            // Pointer declarator
-            just('*')
-                .ignore_then(declarator.clone())
-                .map(Box::new)
-                .map(Declarator::Ptr),
-            // Parenthesized declarator
-            declarator.clone().delimited_by(just('('), just(')')),
-        ))
-        .padded()
+            declarator
+                .clone()
+                .delimited_by(just('(').padded(), just(')').padded()),
+        ));
+
+        // Parses array declarator suffix
+        let array_suffix = int(10)
+            .try_map(|s: &str, span| s.parse::<usize>().map_err(|err| Rich::custom(span, err)))
+            .or_not()
+            .delimited_by(just('[').padded(), just(']').padded());
+
+        // Parses atom with zero or more suffixes
+        let with_suffixes = atom.foldl(array_suffix.repeated(), |inner, maybe_size| {
+            Declarator::Array(Box::new(inner), maybe_size)
+        });
+
+        // Parses a suffixed atom with zero or more pointer prefixes
+        just('*')
+            .padded()
+            .repeated()
+            .foldr(with_suffixes, |_op, inner| Declarator::Ptr(Box::new(inner)))
     });
 
     r#type.then(declarator).map(Declaration::from)
@@ -172,6 +185,10 @@ mod tests {
 
     fn ident(val: &str) -> Declarator {
         Declarator::Ident(val)
+    }
+
+    fn array(d: Declarator, size: impl Into<Option<usize>>) -> Declarator {
+        Declarator::Array(Box::new(d), size.into())
     }
 
     #[test]
@@ -265,5 +282,33 @@ mod tests {
             let src = format!("{type} foo");
             assert_eq!(expected, parser().parse(&src).unwrap());
         }
+    }
+
+    #[test]
+    fn test_array_declarator_no_size() {
+        let expected = Declaration {
+            base_type: Type::Primitive(PrimitiveType("int")),
+            declarator: array(ptr(ident("foo")), None),
+        };
+        assert_eq!(expected, parser().parse("int (*foo)[]").unwrap());
+    }
+
+    #[test]
+    fn test_array_declarator_with_size() {
+        let expected = Declaration {
+            base_type: Type::Primitive(PrimitiveType("int")),
+            declarator: array(ptr(ident("foo")), Some(10)),
+        };
+        assert_eq!(expected, parser().parse("int (*foo)[10]").unwrap());
+    }
+
+
+    #[test]
+    fn test_multi_dimen_array_and_ptr() {
+        let expected = Declaration {
+            base_type: Type::Primitive(PrimitiveType("char")),
+            declarator: ptr(array(array(ident("foo"), 3), 2)),
+        };
+        assert_eq!(expected, parser().parse("char *foo[3][2]").unwrap());
     }
 }

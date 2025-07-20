@@ -71,6 +71,7 @@ pub enum Declarator<'src> {
 }
 
 /// From <https://www.open-std.org/jtc1/sc22/WG14/www/docs/n1256.pdf> section 6.7.2.
+#[must_use]
 pub fn primitive_type_parser<'src>()
 -> impl Parser<'src, &'src str, PrimitiveType, chumsky::extra::Err<Rich<'src, char>>> {
     /// Macro to generate choices from a nicer syntax

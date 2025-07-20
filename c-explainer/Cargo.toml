@@ -8,6 +8,10 @@ license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[lints.clippy]
+pedantic = { level = "warn", priority = -1 }
+missing_panics_doc = "allow"
+
 [dependencies]
 chumsky = { version = "0.10.1", default-features = false }
 parse-display = { version = "0.10.0", default-features = false }

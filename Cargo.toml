@@ -1,0 +1,12 @@
+[workspace]
+resolver = "3"
+members  = ["c-explainer"]
+
+[workspace.package]
+authors      = ["Kian Kasad <kian@kasad.com>"]
+description  = "C declaration/type explainer"
+repository   = "https://github.com/kdkasad/c-explainer"
+license      = "GPL-3.0-or-later"
+
+edition      = "2024"
+rust-version = "1.88"

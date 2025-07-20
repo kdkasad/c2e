@@ -16,6 +16,8 @@
 // Enable use of types which require heap memory.
 extern crate alloc;
 
+use core::{fmt::Display, str::FromStr};
+
 use alloc::boxed::Box;
 use chumsky::{
     prelude::*,
@@ -24,13 +26,13 @@ use chumsky::{
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declaration<'src> {
-    pub base_type: PrimitiveType,
+    pub base_type: Type<'src>,
     pub declarator: Declarator<'src>,
 }
 
-// Convert from a tuple `(PrimitiveType, Declarator)` to a `Declaration`
-impl<'src> From<(PrimitiveType, Declarator<'src>)> for Declaration<'src> {
-    fn from((base_type, declarator): (PrimitiveType, Declarator<'src>)) -> Self {
+// Convert from a tuple `(Type, Declarator)` to a `Declaration`
+impl<'src> From<(Type<'src>, Declarator<'src>)> for Declaration<'src> {
+    fn from((base_type, declarator): (Type<'src>, Declarator<'src>)) -> Self {
         Declaration {
             base_type,
             declarator,
@@ -39,10 +41,27 @@ impl<'src> From<(PrimitiveType, Declarator<'src>)> for Declaration<'src> {
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum PrimitiveType {
-    Void,
-    Char,
-    Int,
+pub enum Type<'src> {
+    Primitive(PrimitiveType),
+    Record(RecordKind, &'src str),
+    // TODO: user-defined (typedef) types
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, parse_display::Display, parse_display::FromStr)]
+#[display(style = "title case")]
+pub enum RecordKind {
+    Union,
+    Struct,
+    Enum,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+pub struct PrimitiveType(&'static str);
+
+impl Display for PrimitiveType {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.fmt(f)
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -51,14 +70,75 @@ pub enum Declarator<'src> {
     Ptr(Box<Declarator<'src>>),
 }
 
+/// From <https://www.open-std.org/jtc1/sc22/WG14/www/docs/n1256.pdf> section 6.7.2.
+pub fn primitive_type_parser<'src>()
+-> impl Parser<'src, &'src str, PrimitiveType, chumsky::extra::Err<Rich<'src, char>>> {
+    /// Macro to generate choices from a nicer syntax
+    macro_rules! gen_choices {
+        ( $( $first:ident $($more:ident)* , )* ) => {
+            choice(( $(
+                keyword(stringify!($first)).padded()
+                $(.then(keyword(stringify!($more)).padded()))*
+                .to(PrimitiveType(stringify!($first $($more)*))),
+            )* ))
+        };
+    }
+
+    // We're limited to 26 choices per `choice()` so we split into two
+    choice((
+        gen_choices![
+            unsigned long long int,
+            unsigned long long,
+            unsigned long int,
+            unsigned short int,
+            unsigned short,
+            unsigned long,
+            unsigned int,
+            unsigned char,
+            unsigned,
+            signed long long int,
+            signed long long,
+            signed long int,
+            signed long,
+            signed short int,
+            signed short,
+            signed char,
+            signed,
+            long long int,
+            long double _Complex,
+            long double,
+            long long,
+            long int,
+            long,
+            short int,
+            short,
+            float _Complex,
+        ],
+        gen_choices![
+            float,
+            double _Complex,
+            double,
+            void,
+            char,
+            int,
+            _Bool,
+        ],
+    ))
+    .padded()
+}
+
 pub fn parser<'src>()
 -> impl Parser<'src, &'src str, Declaration<'src>, chumsky::extra::Err<Rich<'src, char>>> {
-    let primitive_type = choice((
-        keyword("void").to(PrimitiveType::Void),
-        keyword("char").to(PrimitiveType::Char),
-        keyword("int").to(PrimitiveType::Int),
-    ))
-    .padded();
+    let primitive_type = primitive_type_parser();
+    let r#type = choice((
+        // Primitive type
+        primitive_type.map(Type::Primitive),
+        // Record (struct/union/enum) type
+        choice([keyword("struct"), keyword("union"), keyword("enum")])
+            .map(|k| RecordKind::from_str(k).unwrap())
+            .then(ident().padded())
+            .map(|(kind, id)| Type::Record(kind, id)),
+    ));
 
     let declarator = recursive(|declarator| {
         choice((
@@ -66,20 +146,23 @@ pub fn parser<'src>()
             ident().map(Declarator::Ident),
             // Pointer declarator
             just('*')
-                .ignore_then(declarator)
+                .ignore_then(declarator.clone())
                 .map(Box::new)
                 .map(Declarator::Ptr),
+            // Parenthesized declarator
+            declarator.clone().delimited_by(just('('), just(')')),
         ))
         .padded()
     });
 
-    primitive_type.then(declarator).map(Declaration::from)
+    r#type.then(declarator).map(Declaration::from)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    use alloc::format;
     use pretty_assertions::assert_eq;
 
     fn ptr(val: Declarator) -> Declarator {
@@ -93,21 +176,93 @@ mod tests {
     #[test]
     fn test_basic_int_var() {
         let expected = Declaration {
-            base_type: PrimitiveType::Int,
+            base_type: Type::Primitive(PrimitiveType("int")),
             declarator: ident("myvar123"),
         };
         assert_eq!(expected, parser().parse("int myvar123").unwrap());
     }
 
     #[test]
-    fn test_basic_int_ptr_var() {
+    fn test_basic_int_ptr_vars() {
         let expected = Declaration {
-            base_type: PrimitiveType::Int,
+            base_type: Type::Primitive(PrimitiveType("int")),
             declarator: ptr(ident("p")),
         };
         let cases = ["int *p", "int*p", "int* p", "int *\np"];
         for case in cases {
             assert_eq!(expected, parser().parse(case).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_nested_ptrs() {
+        let expected = Declaration {
+            base_type: Type::Primitive(PrimitiveType("char")),
+            declarator: ptr(ptr(ptr(ident("p")))),
+        };
+        assert_eq!(expected, parser().parse("char ***p").unwrap());
+    }
+
+    #[test]
+    fn test_record_vars() {
+        let cases = [
+            ("struct foo bar", RecordKind::Struct),
+            ("enum foo bar", RecordKind::Enum),
+            ("union foo bar", RecordKind::Union),
+        ];
+        for (input, record_kind) in cases {
+            let expected = Declaration {
+                base_type: Type::Record(record_kind, "foo"),
+                declarator: ident("bar"),
+            };
+            assert_eq!(expected, parser().parse(input).unwrap());
+        }
+    }
+
+    #[test]
+    fn test_all_primitive_types() {
+        let cases = [
+            "unsigned long long int",
+            "unsigned long long",
+            "unsigned long int",
+            "unsigned short int",
+            "unsigned short",
+            "unsigned long",
+            "unsigned int",
+            "unsigned char",
+            "unsigned",
+            "signed long long int",
+            "signed long long",
+            "signed long int",
+            "signed long",
+            "signed short int",
+            "signed short",
+            "signed char",
+            "signed",
+            "long long int",
+            "long double _Complex",
+            "long double",
+            "long long",
+            "long int",
+            "long",
+            "short int",
+            "short",
+            "float _Complex",
+            "float",
+            "double _Complex",
+            "double",
+            "void",
+            "char",
+            "int",
+            "_Bool",
+        ];
+        for r#type in cases {
+            let expected = Declaration {
+                base_type: Type::Primitive(PrimitiveType(r#type)),
+                declarator: ident("foo"),
+            };
+            let src = format!("{type} foo");
+            assert_eq!(expected, parser().parse(&src).unwrap());
         }
     }
 }

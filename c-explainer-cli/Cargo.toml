@@ -1,0 +1,14 @@
+[package]
+name = "c-explainer-cli"
+version = "0.0.0"
+authors.workspace = true
+description.workspace = true
+repository.workspace = true
+license.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+c-explainer = { path = "../c-explainer", version = "*" }
+chumsky.workspace = true
+rustyline = { version = "16.0.0", default-features = false }

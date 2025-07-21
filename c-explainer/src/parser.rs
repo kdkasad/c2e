@@ -126,7 +126,7 @@ pub fn parser<'src>()
             .foldr(with_suffixes, |_op, inner| Declarator::Ptr(Box::new(inner)))
     });
 
-    r#type.then(declarator).map(Declaration::from)
+    r#type.then(declarator).map(Declaration::from).padded()
 }
 
 #[cfg(test)]

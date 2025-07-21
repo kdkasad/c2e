@@ -195,7 +195,7 @@ pub fn parser<'src>()
 mod tests {
     use super::*;
 
-    use alloc::{format, vec::Vec};
+    use alloc::{format, vec, vec::Vec};
     use pretty_assertions::assert_eq;
 
     /// Qualified version of [`primitive()`].
@@ -218,6 +218,24 @@ mod tests {
 
     fn primitive<'src>(r#type: &'static str, declarator: Declarator<'src>) -> Declaration<'src> {
         qprimitive([], r#type, declarator)
+    }
+
+    fn qrecord<'src, I>(
+        qualifiers: I,
+        kind: &'static str,
+        name: &'static str,
+        declarator: Declarator<'src>,
+    ) -> Declaration<'src>
+    where
+        I: IntoIterator<Item = TypeQualifier>,
+    {
+        Declaration {
+            base_type: QualifiedType(
+                TypeQualifiers(qualifiers.into_iter().collect()),
+                Type::Record(kind.parse().unwrap(), name),
+            ),
+            declarator,
+        }
     }
 
     fn anon() -> Declarator<'static> {
@@ -447,6 +465,63 @@ mod tests {
                 qptr([TypeQualifier::Volatile], ident("x"))
             ),
             parser().parse("const int *volatile x").unwrap()
+        );
+    }
+
+    #[test]
+    fn parse_struct_var() {
+        assert_eq!(
+            qrecord([TypeQualifier::Const], "struct", "foo", ident("bar")),
+            parser().parse("const struct foo bar").unwrap()
+        );
+    }
+
+    #[test]
+    fn parse_complex_1() {
+        assert_eq!(
+            primitive(
+                "void",
+                func(
+                    ptr(ident("cb")),
+                    vec![qrecord([], "struct", "foo", ptr(anon()))]
+                )
+            ),
+            parser().parse("void (*cb)(struct foo *)").unwrap()
+        );
+    }
+
+    #[test]
+    fn parse_complex_2() {
+        let expected = qprimitive(
+            [TypeQualifier::Const],
+            "char",
+            ptr(func(
+                ptr(ident("func")),
+                vec![
+                    qprimitive(
+                        [],
+                        "void",
+                        func(
+                            ptr(ident("cb")),
+                            vec![qrecord([], "struct", "foo", ptr(anon()))],
+                        ),
+                    ),
+                    primitive("int", anon()),
+                    qprimitive(
+                        [TypeQualifier::Const],
+                        "char",
+                        qptr([TypeQualifier::Restrict], ident("my_str")),
+                    ),
+                ],
+            )),
+        );
+        assert_eq!(
+            expected,
+            parser()
+                .parse(
+                    "const char *(*func)(void (*cb)(struct foo *), int, const char *restrict my_str)"
+                )
+                .unwrap()
         );
     }
 }

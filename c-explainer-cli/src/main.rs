@@ -1,8 +1,11 @@
-use std::process::ExitCode;
+use std::{
+    io::{stdin, IsTerminal},
+    process::ExitCode,
+};
 
 use c_explainer::{explainer::explain_declaration, parser::parser};
 use chumsky::Parser;
-use rustyline::{Config, DefaultEditor, error::ReadlineError};
+use rustyline::{error::ReadlineError, Config, DefaultEditor};
 
 fn main() -> ExitCode {
     let rl_config = Config::builder().auto_add_history(true).build();
@@ -26,10 +29,13 @@ fn main() -> ExitCode {
                     }
                 }
             }
-            Err(ReadlineError::Interrupted | ReadlineError::Eof) => {
-                println!("Exiting...");
+            Err(ReadlineError::Interrupted) => {
+                if stdin().is_terminal() {
+                    println!("Interrupted; exiting...");
+                }
                 return ExitCode::SUCCESS;
             }
+            Err(ReadlineError::Eof) => return ExitCode::SUCCESS,
             Err(err) => {
                 eprintln!("Error reading line: {err}");
                 return ExitCode::FAILURE;

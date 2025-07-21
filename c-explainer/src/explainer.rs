@@ -80,7 +80,10 @@ fn explain_declarator(declarator: &Declarator) -> (String, Plurality) {
         }
         Declarator::Function { func, params } => {
             let (mut explanation, plurality) = explain_declarator(func);
-            explanation.push_str("a function that takes ");
+            explanation.push_str(match plurality {
+                Plurality::Singular => "a function that takes ",
+                Plurality::Plural => "functions that take ",
+            });
             if params.is_empty() {
                 explanation.push_str("no parameters");
             } else {
@@ -96,8 +99,11 @@ fn explain_declarator(declarator: &Declarator) -> (String, Plurality) {
                     explanation.push_str(&param_explanation);
                 }
             }
-            explanation.push_str(" and returns ");
-            (explanation, plurality)
+            explanation.push_str(match plurality {
+                Plurality::Singular => " and returns ",
+                Plurality::Plural => " and return ",
+            });
+            (explanation, Plurality::Singular)
         }
     }
 }
@@ -174,6 +180,14 @@ mod tests {
         run(
             "void func()",
             "\"func\", a function that takes no parameters and returns a void",
+        );
+    }
+
+    #[test]
+    fn explain_array_of_functions() {
+        run(
+            "char *(*(*bar)[5])(int)",
+            "\"bar\", a pointer to an array of 5 pointers to functions that take an int and return a pointer to a char",
         );
     }
 }

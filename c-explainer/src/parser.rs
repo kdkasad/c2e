@@ -21,7 +21,10 @@ use chumsky::{
     text::{ident, int, keyword},
 };
 
-use crate::ast::{Declaration, Declarator, PrimitiveType, RecordKind, Type};
+use crate::ast::{
+    Declaration, Declarator, PrimitiveType, QualifiedType, RecordKind, Type, TypeQualifier,
+    TypeQualifiers,
+};
 
 /// From <https://www.open-std.org/jtc1/sc22/WG14/www/docs/n1256.pdf> section 6.7.2.
 #[must_use]
@@ -98,6 +101,16 @@ enum SuffixInfo<'src> {
 pub fn parser<'src>()
 -> impl Parser<'src, &'src str, Declaration<'src>, chumsky::extra::Err<Rich<'src, char>>> {
     recursive(|declaration| {
+        // Parses zero or more type qualifiers. Returns `TypeQualifiers`.
+        let qualifiers = choice((
+            keyword("const").to(TypeQualifier::Const),
+            keyword("volatile").to(TypeQualifier::Volatile),
+            keyword("restrict").to(TypeQualifier::Restrict),
+        ))
+        .padded()
+        .repeated()
+        .collect::<TypeQualifiers>();
+
         let primitive_type = primitive_type_parser();
         let r#type = choice((
             // Primitive type
@@ -108,6 +121,7 @@ pub fn parser<'src>()
                 .then(ident().padded())
                 .map(|(kind, id)| Type::Record(kind, id)),
         ));
+        let qualified_type = qualifiers.clone().then(r#type).map(QualifiedType::from);
 
         let declarator = recursive(|declarator| {
             // Parses a declarator atom: either an identifier or parenthesized declarator.
@@ -159,14 +173,21 @@ pub fn parser<'src>()
                     },
                 );
 
-            // Parses a suffixed atom with zero or more pointer prefixes
+            // Parses a suffixed atom with zero or more pointer prefixes.
+            // Returns `Declarator`.
             just('*')
                 .padded()
+                .ignore_then(qualifiers)
                 .repeated()
-                .foldr(with_suffixes, |_op, inner| Declarator::Ptr(Box::new(inner)))
+                .foldr(with_suffixes, |qualifiers, inner| {
+                    Declarator::Ptr(Box::new(inner), qualifiers)
+                })
         });
 
-        r#type.then(declarator).map(Declaration::from).padded()
+        qualified_type
+            .then(declarator)
+            .map(Declaration::from)
+            .padded()
     })
 }
 
@@ -177,19 +198,44 @@ mod tests {
     use alloc::{format, vec::Vec};
     use pretty_assertions::assert_eq;
 
-    fn primitive<'src>(r#type: &'static str, declarator: Declarator<'src>) -> Declaration<'src> {
+    /// Qualified version of [`primitive()`].
+    fn qprimitive<'src, I>(
+        qualifiers: I,
+        r#type: &'static str,
+        declarator: Declarator<'src>,
+    ) -> Declaration<'src>
+    where
+        I: IntoIterator<Item = TypeQualifier>,
+    {
         Declaration {
-            base_type: Type::Primitive(PrimitiveType(r#type)),
+            base_type: QualifiedType(
+                TypeQualifiers(qualifiers.into_iter().collect()),
+                Type::Primitive(PrimitiveType(r#type)),
+            ),
             declarator,
         }
+    }
+
+    fn primitive<'src>(r#type: &'static str, declarator: Declarator<'src>) -> Declaration<'src> {
+        qprimitive([], r#type, declarator)
     }
 
     fn anon() -> Declarator<'static> {
         Declarator::Anonymous
     }
 
+    fn qptr<I>(qualifiers: I, val: Declarator) -> Declarator
+    where
+        I: IntoIterator<Item = TypeQualifier>,
+    {
+        Declarator::Ptr(
+            Box::new(val),
+            TypeQualifiers(qualifiers.into_iter().collect()),
+        )
+    }
+
     fn ptr(val: Declarator) -> Declarator {
-        Declarator::Ptr(Box::new(val))
+        qptr([], val)
     }
 
     fn ident(val: &str) -> Declarator {
@@ -213,7 +259,7 @@ mod tests {
     #[test]
     fn test_basic_int_var() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("int")),
+            base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: ident("myvar123"),
         };
         assert_eq!(expected, parser().parse("int myvar123").unwrap());
@@ -222,7 +268,7 @@ mod tests {
     #[test]
     fn test_basic_int_ptr_vars() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("int")),
+            base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: ptr(ident("p")),
         };
         let cases = ["int *p", "int*p", "int* p", "int *\np"];
@@ -234,7 +280,7 @@ mod tests {
     #[test]
     fn test_nested_ptrs() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("char")),
+            base_type: Type::Primitive(PrimitiveType("char")).into(),
             declarator: ptr(ptr(ptr(ident("p")))),
         };
         assert_eq!(expected, parser().parse("char ***p").unwrap());
@@ -249,7 +295,7 @@ mod tests {
         ];
         for (input, record_kind) in cases {
             let expected = Declaration {
-                base_type: Type::Record(record_kind, "foo"),
+                base_type: Type::Record(record_kind, "foo").into(),
                 declarator: ident("bar"),
             };
             assert_eq!(expected, parser().parse(input).unwrap());
@@ -296,7 +342,7 @@ mod tests {
         ];
         for r#type in cases {
             let expected = Declaration {
-                base_type: Type::Primitive(PrimitiveType(r#type)),
+                base_type: Type::Primitive(PrimitiveType(r#type)).into(),
                 declarator: ident("foo"),
             };
             let src = format!("{type} foo");
@@ -307,7 +353,7 @@ mod tests {
     #[test]
     fn test_array_declarator_no_size() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("int")),
+            base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: array(ptr(ident("foo")), None),
         };
         assert_eq!(expected, parser().parse("int (*foo)[]").unwrap());
@@ -316,7 +362,7 @@ mod tests {
     #[test]
     fn test_array_declarator_with_size() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("int")),
+            base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: array(ptr(ident("foo")), Some(10)),
         };
         assert_eq!(expected, parser().parse("int (*foo)[10]").unwrap());
@@ -325,7 +371,7 @@ mod tests {
     #[test]
     fn test_multi_dimen_array_and_ptr() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("char")),
+            base_type: Type::Primitive(PrimitiveType("char")).into(),
             declarator: ptr(array(array(ident("foo"), 3), 2)),
         };
         assert_eq!(expected, parser().parse("char *foo[3][2]").unwrap());
@@ -334,7 +380,7 @@ mod tests {
     #[test]
     fn test_function_no_args() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("int")),
+            base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: func(ident("foo"), []),
         };
         assert_eq!(expected, parser().parse("int foo()").unwrap());
@@ -343,7 +389,7 @@ mod tests {
     #[test]
     fn test_function_single_unnamed_arg() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("int")),
+            base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: func(ident("foo"), [primitive("int", anon())]),
         };
         assert_eq!(expected, parser().parse("int foo(int)").unwrap());
@@ -352,7 +398,7 @@ mod tests {
     #[test]
     fn test_function_single_named_arg() {
         let expected = Declaration {
-            base_type: Type::Primitive(PrimitiveType("int")),
+            base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: func(ident("foo"), [primitive("int", ident("bar"))]),
         };
         assert_eq!(expected, parser().parse("int foo(int bar)").unwrap());
@@ -373,6 +419,34 @@ mod tests {
         assert_eq!(
             expected,
             parser().parse("int *foo(int bar, char baz)").unwrap()
+        );
+    }
+
+    #[test]
+    fn parse_qualified_primitive() {
+        assert_eq!(
+            qprimitive([TypeQualifier::Const], "int", ident("x")),
+            parser().parse("const int x").unwrap()
+        );
+    }
+
+    #[test]
+    fn parse_const_char_ptr() {
+        assert_eq!(
+            qprimitive([TypeQualifier::Const], "char", ptr(ident("str"))),
+            parser().parse("const char *str").unwrap()
+        );
+    }
+
+    #[test]
+    fn parse_qualified_ptr() {
+        assert_eq!(
+            qprimitive(
+                [TypeQualifier::Const],
+                "int",
+                qptr([TypeQualifier::Volatile], ident("x"))
+            ),
+            parser().parse("const int *volatile x").unwrap()
         );
     }
 }

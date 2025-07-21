@@ -13,17 +13,23 @@
 
 //! Abstract syntax tree (AST) types
 
+use core::{
+    fmt::Display,
+    ops::{Deref, DerefMut},
+};
+
 use alloc::{boxed::Box, vec::Vec};
+use enumflags2::BitFlags;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declaration<'src> {
-    pub base_type: Type<'src>,
+    pub base_type: QualifiedType<'src>,
     pub declarator: Declarator<'src>,
 }
 
 // Convert from a tuple `(Type, Declarator)` to a `Declaration`
-impl<'src> From<(Type<'src>, Declarator<'src>)> for Declaration<'src> {
-    fn from((base_type, declarator): (Type<'src>, Declarator<'src>)) -> Self {
+impl<'src> From<(QualifiedType<'src>, Declarator<'src>)> for Declaration<'src> {
+    fn from((base_type, declarator): (QualifiedType<'src>, Declarator<'src>)) -> Self {
         Declaration {
             base_type,
             declarator,
@@ -38,6 +44,87 @@ pub enum Type<'src> {
     #[display("{0} {1}")]
     Record(RecordKind, &'src str),
     // TODO: user-defined (typedef) types
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq, parse_display::Display)]
+#[display("{0}{1}")]
+pub struct QualifiedType<'src>(pub TypeQualifiers, pub Type<'src>);
+
+impl<'src> From<(TypeQualifiers, Type<'src>)> for QualifiedType<'src> {
+    fn from((qualifiers, ty): (TypeQualifiers, Type<'src>)) -> Self {
+        QualifiedType(qualifiers, ty)
+    }
+}
+
+impl<'src> From<Type<'src>> for QualifiedType<'src> {
+    fn from(ty: Type<'src>) -> Self {
+        QualifiedType(TypeQualifiers::default(), ty)
+    }
+}
+
+/// Qualifier for a type
+#[derive(Debug, Copy, Clone, PartialEq, Eq, parse_display::Display)]
+#[display(style = "title case")]
+#[enumflags2::bitflags]
+#[repr(u8)]
+pub enum TypeQualifier {
+    /// `const`
+    Const,
+    /// `volatile`
+    Volatile,
+    /// `restrict`
+    Restrict,
+}
+
+/// Bit set of [type qualifiers][TypeQualifier]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Default)]
+pub struct TypeQualifiers(pub BitFlags<TypeQualifier>);
+
+impl Deref for TypeQualifiers {
+    type Target = BitFlags<TypeQualifier>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TypeQualifiers {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+/// Format the type qualifiers as a space-separated list, followed by a space if non-empty.
+///
+/// # Examples
+///
+/// ```
+/// # use c_explainer::ast::TypeQualifiers;
+/// let empty = TypeQualifiers::default();
+/// assert_eq!(&empty.to_string(), "");
+/// ```
+///
+/// ```
+/// # use c_explainer::ast::{TypeQualifiers, TypeQualifier};
+/// let mut qualifiers = TypeQualifiers([
+///     TypeQualifier::Const,
+///     TypeQualifier::Volatile
+/// ].into_iter().collect());
+/// assert_eq!(&qualifiers.to_string(), "const volatile ");
+/// ```
+impl Display for TypeQualifiers {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        for qualifier in self.iter() {
+            write!(f, "{qualifier} ")?;
+        }
+        Ok(())
+    }
+}
+
+impl chumsky::container::Container<TypeQualifier> for TypeQualifiers {
+    fn push(&mut self, item: TypeQualifier) {
+        self.insert(item);
+    }
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, parse_display::Display, parse_display::FromStr)]
@@ -63,7 +150,7 @@ pub enum Declarator<'src> {
     /// I.e., this is where [`Declarator::Ident`] would be used if the declaration had a name.
     Anonymous,
     Ident(&'src str),
-    Ptr(Box<Declarator<'src>>),
+    Ptr(Box<Declarator<'src>>, TypeQualifiers),
     Array(Box<Declarator<'src>>, Option<usize>),
     Function {
         func: Box<Declarator<'src>>,

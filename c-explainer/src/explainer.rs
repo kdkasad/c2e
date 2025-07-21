@@ -15,9 +15,12 @@
 
 use core::fmt::Write;
 
-use alloc::{format, string::String};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 
-use crate::ast::{Declaration, Declarator, Type};
+use crate::ast::{Declaration, Declarator, QualifiedType, Type};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Plurality {
@@ -47,9 +50,13 @@ fn make_plural(dst: &mut String, noun: &str) {
 pub fn explain_declaration(decl: &Declaration) -> String {
     let (mut explanation, plurality) = explain_declarator(&decl.declarator);
     match (decl.base_type, plurality) {
-        (Type::Primitive(ty), Plurality::Singular) => articulate(&mut explanation, ty.as_ref()),
-        (Type::Primitive(ty), Plurality::Plural) => make_plural(&mut explanation, ty.as_ref()),
-        (Type::Record(kind, name), _) => write!(&mut explanation, "{kind} {name}").unwrap(),
+        (QualifiedType(_, Type::Primitive(_)), Plurality::Singular) => {
+            articulate(&mut explanation, &decl.base_type.to_string());
+        }
+        (QualifiedType(_, Type::Primitive(_)), Plurality::Plural) => {
+            make_plural(&mut explanation, &decl.base_type.to_string());
+        }
+        (qt, _) => write!(&mut explanation, "{qt}").unwrap(),
     }
     explanation
 }
@@ -59,12 +66,13 @@ fn explain_declarator(declarator: &Declarator) -> (String, Plurality) {
     match declarator {
         Declarator::Anonymous => (String::new(), Plurality::Singular),
         Declarator::Ident(name) => (format!("\"{name}\", "), Plurality::Singular),
-        Declarator::Ptr(inner) => {
+        Declarator::Ptr(inner, qualifiers) => {
             let (mut explanation, plurality) = explain_declarator(inner);
-            explanation.push_str(match plurality {
-                Plurality::Singular => "a pointer to ",
-                Plurality::Plural => "pointers to ",
-            });
+            match plurality {
+                Plurality::Singular => write!(&mut explanation, "a {qualifiers}pointer to "),
+                Plurality::Plural => write!(&mut explanation, "{qualifiers}pointers to "),
+            }
+            .unwrap();
             (explanation, plurality)
         }
         Declarator::Array(inner, len) => {
@@ -188,6 +196,20 @@ mod tests {
         run(
             "char *(*(*bar)[5])(int)",
             "\"bar\", a pointer to an array of 5 pointers to functions that take an int and return a pointer to a char",
+        );
+    }
+
+    #[test]
+    fn explain_qualifiers() {
+        run("const int x", "\"x\", a const int");
+        run("volatile int x", "\"x\", a volatile int");
+        run(
+            "int *const restrict x",
+            "\"x\", a const restrict pointer to an int",
+        );
+        run(
+            "const char *const str",
+            "\"str\", a const pointer to a const char",
         );
     }
 }

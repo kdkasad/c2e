@@ -1,11 +1,11 @@
 use std::{
-    io::{stdin, IsTerminal},
+    io::{IsTerminal, stdin},
     process::ExitCode,
 };
 
 use c_explainer::{explainer::explain_declaration, parser::parser};
 use chumsky::Parser;
-use rustyline::{error::ReadlineError, Config, DefaultEditor};
+use rustyline::{Config, DefaultEditor, error::ReadlineError};
 
 fn main() -> ExitCode {
     let rl_config = Config::builder().auto_add_history(true).build();

@@ -541,7 +541,11 @@ mod tests {
         let result = parser().parse("int arr[x]");
         let errors = result.into_errors();
         assert_eq!(errors.len(), 1, "expected one error");
-        assert_eq!(errors[0].span().into_range(), 8..9, "error position mismatch");
+        assert_eq!(
+            errors[0].span().into_range(),
+            8..9,
+            "error position mismatch"
+        );
     }
 
     #[test]
@@ -550,6 +554,10 @@ mod tests {
         let result = parser().parse(&src);
         let errors = result.into_errors();
         assert_eq!(errors.len(), 1, "expected one error");
-        assert_eq!(errors[0].span().into_range(), 8..29, "error position mismatch");
+        assert_eq!(
+            errors[0].span().into_range(),
+            8..29,
+            "error position mismatch"
+        );
     }
 }

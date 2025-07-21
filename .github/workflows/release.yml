@@ -1,0 +1,65 @@
+name: Publish C-Explainer release
+
+on:
+  release:
+    types:
+      - published
+
+
+jobs:
+  build:
+    name: Build
+    permissions:
+      id-token: write
+      contents: read
+      attestations: write
+    uses: ./.github/workflows/build.yml
+
+  publish-docs:
+    name: Publish documentation
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    uses: ./.github/workflows/publish-docs.yml
+
+  publish-binaries:
+    name: Upload CLI binaries to GitHub release
+    permissions:
+      contents: write
+    if: ${{ github.event_name == 'release' }}
+    needs:
+      - build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Download binary artifacts
+        uses: actions/download-artifact@v4
+        with:
+          merge-multiple: true
+
+      - name: List downloaded files
+        run: ls -lAhR
+
+      - name: Publish binaries
+        run: gh release upload ${{ github.ref_name }} c-explainer-*
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  publish-to-crates-io:
+    name: Publish release to crates.io
+    runs-on: ubuntu-latest
+    environment: crates.io
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v3
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Publish to crates.io
+        run: cargo publish
+        env:
+          CARGO_REGISTRY_TOKEN: ${{ secrets.CARGO_REGISTRY_TOKEN }}

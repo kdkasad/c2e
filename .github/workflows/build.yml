@@ -1,0 +1,122 @@
+name: Build CLI binaries
+
+on:
+  workflow_call:
+  pull_request:
+    branches:
+      - master
+      - 'release/*'
+  push:
+    tags:
+      - 'v*'
+    branches:
+      - 'release/*'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.sha }}
+  cancel-in-progress: true
+
+permissions:
+  id-token: write
+  contents: read
+  attestations: write
+
+env:
+  CARGO_INCREMENTAL: 0
+
+jobs:
+  build:
+    name: Build (${{ matrix.target }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact: c-explainer-x86_64-windows.exe
+
+          - os: windows-latest
+            target: i686-pc-windows-msvc
+            artifact: c-explainer-i686-windows.exe
+
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            artifact: c-explainer-aarch64-windows.exe
+
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact: c-explainer-x86_64-macos
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact: c-explainer-aarch64-macos
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact: c-explainer-x86_64-linux-gnu
+
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact: c-explainer-aarch64-linux-gnu
+            use-cross: true
+
+          - os: ubuntu-latest
+            target: armv7-unknown-linux-gnueabihf
+            artifact: c-explainer-armv7hf-linux-gnu
+            use-cross: true
+
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-musl
+            artifact: c-explainer-x86_64-linux-musl
+
+    steps:
+      - name: Install musl-gcc
+        if: ${{ contains(matrix.target, 'musl') }}
+        run: sudo apt-get install musl-tools
+
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Compile
+        if: ${{ matrix.use-cross != true }}
+        run: cargo build --target ${{ matrix.target }} --release --locked
+
+      - name: Install cross (if not cached)
+        if: ${{ matrix.use-cross == true }}
+        run: cross || cargo install cross
+
+      - name: Compile (using cross)
+        if: ${{ matrix.use-cross == true }}
+        run: cross build --target ${{ matrix.target }} --release --locked
+
+      - name: Rename binary for target
+        id: rename
+        env:
+          SRC: ${{ format(
+              'target/{0}/release/c-explainer-cli{1}',
+              matrix.target,
+              contains(matrix.os, 'windows') && '.exe' || ''
+            ) }}
+          DST: ${{ format('target/{0}/release/{1}', matrix.target, matrix.artifact) }}
+        shell: bash
+        run: |
+          mv "$SRC" "$DST"
+          echo "path=$DST" >> "$GITHUB_OUTPUT"
+
+      - name: Attest build provenance
+        if: ${{ github.event_name != 'pull_request' }}
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: ${{ steps.rename.outputs.path }}
+
+      - name: Upload archive artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ steps.rename.outputs.path }}

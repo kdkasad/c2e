@@ -46,7 +46,6 @@ fn make_plural(dst: &mut String, noun: &str) {
 #[must_use]
 pub fn explain_declaration(decl: &Declaration) -> String {
     let (mut explanation, plurality) = explain_declarator(&decl.declarator);
-    explanation.push(' ');
     match (decl.base_type, plurality) {
         (Type::Primitive(ty), Plurality::Singular) => articulate(&mut explanation, ty.as_ref()),
         (Type::Primitive(ty), Plurality::Plural) => make_plural(&mut explanation, ty.as_ref()),
@@ -58,25 +57,47 @@ pub fn explain_declaration(decl: &Declaration) -> String {
 #[must_use]
 fn explain_declarator(declarator: &Declarator) -> (String, Plurality) {
     match declarator {
-        Declarator::Ident(name) => (format!("{name} is"), Plurality::Singular),
+        Declarator::Anonymous => (String::new(), Plurality::Singular),
+        Declarator::Ident(name) => (format!("\"{name}\", "), Plurality::Singular),
         Declarator::Ptr(inner) => {
             let (mut explanation, plurality) = explain_declarator(inner);
             explanation.push_str(match plurality {
-                Plurality::Singular => " a pointer to",
-                Plurality::Plural => " pointers to",
+                Plurality::Singular => "a pointer to ",
+                Plurality::Plural => "pointers to ",
             });
             (explanation, plurality)
         }
         Declarator::Array(inner, len) => {
             let (mut explanation, plurality) = explain_declarator(inner);
             explanation.push_str(match plurality {
-                Plurality::Singular => " an array of",
-                Plurality::Plural => " arrays of",
+                Plurality::Singular => "an array of ",
+                Plurality::Plural => "arrays of ",
             });
             if let Some(len) = len {
-                write!(&mut explanation, " {len}").unwrap();
+                write!(&mut explanation, "{len} ").unwrap();
             }
             (explanation, Plurality::Plural)
+        }
+        Declarator::Function { func, params } => {
+            let (mut explanation, plurality) = explain_declarator(func);
+            explanation.push_str("a function that takes ");
+            if params.is_empty() {
+                explanation.push_str("no parameters");
+            } else {
+                for (i, param) in params.iter().enumerate() {
+                    if i > 0 {
+                        if i == params.len() - 1 {
+                            explanation.push_str(", and ");
+                        } else {
+                            explanation.push_str(", ");
+                        }
+                    }
+                    let param_explanation = explain_declaration(param);
+                    explanation.push_str(&param_explanation);
+                }
+            }
+            explanation.push_str(" and returns ");
+            (explanation, plurality)
         }
     }
 }
@@ -97,51 +118,62 @@ mod tests {
 
     #[test]
     fn explain_primitive_var() {
-        run("int x", "x is an int");
+        run("int x", "\"x\", an int");
     }
 
     /// Ensures "a" and "an" are used appropriately.
     #[test]
     fn test_articles() {
-        run("int x", "x is an int");
-        run("signed int x", "x is a signed int");
+        run("int x", "\"x\", an int");
+        run("signed int x", "\"x\", a signed int");
     }
 
     #[test]
     fn explain_ptr_to_primitive() {
-        run("int *p", "p is a pointer to an int");
+        run("int *p", "\"p\", a pointer to an int");
     }
 
     #[test]
     fn explain_array_of_primitive() {
-        run("int arr[]", "arr is an array of ints");
+        run("int arr[]", "\"arr\", an array of ints");
     }
 
     #[test]
     fn explain_array_of_primitive_with_size() {
-        run("int arr[10]", "arr is an array of 10 ints");
+        run("int arr[10]", "\"arr\", an array of 10 ints");
     }
 
     #[test]
     fn explain_2d_array_of_primitive() {
-        run("int arr[10][20]", "arr is an array of 10 arrays of 20 ints");
+        run(
+            "int arr[10][20]",
+            "\"arr\", an array of 10 arrays of 20 ints",
+        );
     }
 
     #[test]
     fn explain_nested_ptrs() {
         run(
             "char ***p",
-            "p is a pointer to a pointer to a pointer to a char",
+            "\"p\", a pointer to a pointer to a pointer to a char",
         );
     }
 
     #[test]
     fn explain_array_of_ptrs() {
-        run("int *arr[10]", "arr is an array of 10 pointers to ints");
+        run("int *arr[10]", "\"arr\", an array of 10 pointers to ints");
     }
 
     #[test]
     fn explain_ptr_to_array() {
-        run("int (*p)[10]", "p is a pointer to an array of 10 ints");
+        run("int (*p)[10]", "\"p\", a pointer to an array of 10 ints");
+    }
+
+    #[test]
+    fn explain_function_with_no_params() {
+        run(
+            "void func()",
+            "\"func\", a function that takes no parameters and returns a void",
+        );
     }
 }

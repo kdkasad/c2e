@@ -13,7 +13,7 @@
 
 //! Abstract syntax tree (AST) types
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Declaration<'src> {
@@ -59,7 +59,14 @@ impl AsRef<str> for PrimitiveType {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Declarator<'src> {
+    /// Represents the base of an anonymous (unnamed) declaration, such as a function parameter.
+    /// I.e., this is where [`Declarator::Ident`] would be used if the declaration had a name.
+    Anonymous,
     Ident(&'src str),
     Ptr(Box<Declarator<'src>>),
     Array(Box<Declarator<'src>>, Option<usize>),
+    Function {
+        func: Box<Declarator<'src>>,
+        params: Vec<Declaration<'src>>,
+    },
 }

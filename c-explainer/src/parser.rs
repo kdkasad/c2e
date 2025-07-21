@@ -15,7 +15,7 @@
 
 use core::str::FromStr;
 
-use alloc::boxed::Box;
+use alloc::{boxed::Box, vec::Vec};
 use chumsky::{
     prelude::*,
     text::{ident, int, keyword},
@@ -26,7 +26,7 @@ use crate::ast::{Declaration, Declarator, PrimitiveType, RecordKind, Type};
 /// From <https://www.open-std.org/jtc1/sc22/WG14/www/docs/n1256.pdf> section 6.7.2.
 #[must_use]
 fn primitive_type_parser<'src>()
--> impl Parser<'src, &'src str, PrimitiveType, chumsky::extra::Err<Rich<'src, char>>> {
+-> impl Parser<'src, &'src str, PrimitiveType, chumsky::extra::Err<Rich<'src, char>>> + Clone {
     /// Macro to generate choices from a nicer syntax.
     /// Turns something like `unsigned long int` into
     /// `keyword("unsigned").padded().then(keyword("long").padded()).then(keyword("int").padded)`.
@@ -84,57 +84,109 @@ fn primitive_type_parser<'src>()
     .padded()
 }
 
+/// Helper enum to represent the possible suffixes of a declarator. This is needed so we have one
+/// concrete type which can be used for all suffixes, allowing us to mix suffixes inside
+/// a `choice().repeated()`, which requires the same type for all branches.
+#[derive(Debug, Clone)]
+enum SuffixInfo<'src> {
+    Array(Option<usize>),
+    Function(Vec<Declaration<'src>>),
+}
+
 /// Returns a parser which parses a C declaration.
 #[must_use]
 pub fn parser<'src>()
 -> impl Parser<'src, &'src str, Declaration<'src>, chumsky::extra::Err<Rich<'src, char>>> {
-    let primitive_type = primitive_type_parser();
-    let r#type = choice((
-        // Primitive type
-        primitive_type.map(Type::Primitive),
-        // Record (struct/union/enum) type
-        choice([keyword("struct"), keyword("union"), keyword("enum")])
-            .map(|k| RecordKind::from_str(k).unwrap())
-            .then(ident().padded())
-            .map(|(kind, id)| Type::Record(kind, id)),
-    ));
-
-    let declarator = recursive(|declarator| {
-        // Parses a declarator atom: either an identifier or parenthesized declarator
-        let atom = choice((
-            ident().map(Declarator::Ident),
-            declarator
-                .clone()
-                .delimited_by(just('(').padded(), just(')').padded()),
+    recursive(|declaration| {
+        let primitive_type = primitive_type_parser();
+        let r#type = choice((
+            // Primitive type
+            primitive_type.map(Type::Primitive),
+            // Record (struct/union/enum) type
+            choice([keyword("struct"), keyword("union"), keyword("enum")])
+                .map(|k| RecordKind::from_str(k).unwrap())
+                .then(ident().padded())
+                .map(|(kind, id)| Type::Record(kind, id)),
         ));
 
-        // Parses array declarator suffix
-        let array_suffix = int(10)
-            .try_map(|s, span| usize::from_str(s).map_err(|err| Rich::custom(span, err)))
-            .or_not()
-            .delimited_by(just('[').padded(), just(']').padded());
+        let declarator = recursive(|declarator| {
+            // Parses a declarator atom: either an identifier or parenthesized declarator.
+            // Returns `Declarator`.
+            let atom = choice((
+                ident().map(Declarator::Ident),
+                declarator
+                    .clone()
+                    .delimited_by(just('(').padded(), just(')').padded()),
+            ));
 
-        // Parses atom with zero or more suffixes
-        let with_suffixes = atom.foldl(array_suffix.repeated(), |inner, maybe_size| {
-            Declarator::Array(Box::new(inner), maybe_size)
+            // Parses array declarator suffix. Returns `SuffixInfo`.
+            let array_suffix = int(10)
+                .try_map(|s, span| usize::from_str(s).map_err(|err| Rich::custom(span, err)))
+                .or_not()
+                .delimited_by(just('[').padded(), just(']').padded());
+
+            // Parses function parameter list. Returns `Vec<Declaration>`.
+            let func_param_list = declaration
+                .separated_by(just(',').padded())
+                .allow_trailing()
+                .collect::<Vec<Declaration>>();
+
+            // Parses function declarator suffix. Returns `SuffixInfo`.
+            let func_suffix = choice((
+                // Special case: func(void) means no parameters
+                just("void").to(Vec::new()),
+                func_param_list,
+            ))
+            .delimited_by(just('(').padded(), just(')').padded());
+
+            // Parses atom with zero or more suffixes.
+            // Returns `Declarator`.
+            let with_suffixes = atom
+                .or_not()
+                .map(|atom| atom.unwrap_or(Declarator::Anonymous))
+                .foldl(
+                    choice((
+                        array_suffix.map(SuffixInfo::Array),
+                        func_suffix.map(SuffixInfo::Function),
+                    ))
+                    .repeated(),
+                    |inner, suffix| match suffix {
+                        SuffixInfo::Array(size) => Declarator::Array(Box::new(inner), size),
+                        SuffixInfo::Function(params) => Declarator::Function {
+                            func: Box::new(inner),
+                            params,
+                        },
+                    },
+                );
+
+            // Parses a suffixed atom with zero or more pointer prefixes
+            just('*')
+                .padded()
+                .repeated()
+                .foldr(with_suffixes, |_op, inner| Declarator::Ptr(Box::new(inner)))
         });
 
-        // Parses a suffixed atom with zero or more pointer prefixes
-        just('*')
-            .padded()
-            .repeated()
-            .foldr(with_suffixes, |_op, inner| Declarator::Ptr(Box::new(inner)))
-    });
-
-    r#type.then(declarator).map(Declaration::from).padded()
+        r#type.then(declarator).map(Declaration::from).padded()
+    })
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    use alloc::format;
+    use alloc::{format, vec::Vec};
     use pretty_assertions::assert_eq;
+
+    fn primitive<'src>(r#type: &'static str, declarator: Declarator<'src>) -> Declaration<'src> {
+        Declaration {
+            base_type: Type::Primitive(PrimitiveType(r#type)),
+            declarator,
+        }
+    }
+
+    fn anon() -> Declarator<'static> {
+        Declarator::Anonymous
+    }
 
     fn ptr(val: Declarator) -> Declarator {
         Declarator::Ptr(Box::new(val))
@@ -146,6 +198,16 @@ mod tests {
 
     fn array(d: Declarator, size: impl Into<Option<usize>>) -> Declarator {
         Declarator::Array(Box::new(d), size.into())
+    }
+
+    fn func<'src>(
+        func: Declarator<'src>,
+        args: impl Into<Vec<Declaration<'src>>>,
+    ) -> Declarator<'src> {
+        Declarator::Function {
+            func: Box::new(func),
+            params: args.into(),
+        }
     }
 
     #[test]
@@ -267,5 +329,50 @@ mod tests {
             declarator: ptr(array(array(ident("foo"), 3), 2)),
         };
         assert_eq!(expected, parser().parse("char *foo[3][2]").unwrap());
+    }
+
+    #[test]
+    fn test_function_no_args() {
+        let expected = Declaration {
+            base_type: Type::Primitive(PrimitiveType("int")),
+            declarator: func(ident("foo"), []),
+        };
+        assert_eq!(expected, parser().parse("int foo()").unwrap());
+    }
+
+    #[test]
+    fn test_function_single_unnamed_arg() {
+        let expected = Declaration {
+            base_type: Type::Primitive(PrimitiveType("int")),
+            declarator: func(ident("foo"), [primitive("int", anon())]),
+        };
+        assert_eq!(expected, parser().parse("int foo(int)").unwrap());
+    }
+
+    #[test]
+    fn test_function_single_named_arg() {
+        let expected = Declaration {
+            base_type: Type::Primitive(PrimitiveType("int")),
+            declarator: func(ident("foo"), [primitive("int", ident("bar"))]),
+        };
+        assert_eq!(expected, parser().parse("int foo(int bar)").unwrap());
+    }
+
+    #[test]
+    fn test_function_multiple_named_args() {
+        let expected = primitive(
+            "int",
+            ptr(func(
+                ident("foo"),
+                [
+                    primitive("int", ident("bar")),
+                    primitive("char", ident("baz")),
+                ],
+            )),
+        );
+        assert_eq!(
+            expected,
+            parser().parse("int *foo(int bar, char baz)").unwrap()
+        );
     }
 }

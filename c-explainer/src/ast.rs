@@ -13,8 +13,6 @@
 
 //! Abstract syntax tree (AST) types
 
-use core::fmt::Display;
-
 use alloc::boxed::Box;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -33,9 +31,11 @@ impl<'src> From<(Type<'src>, Declarator<'src>)> for Declaration<'src> {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, parse_display::Display)]
 pub enum Type<'src> {
+    #[display("{0}")]
     Primitive(PrimitiveType),
+    #[display("{0} {1}")]
     Record(RecordKind, &'src str),
     // TODO: user-defined (typedef) types
 }
@@ -48,12 +48,12 @@ pub enum RecordKind {
     Enum,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, parse_display::Display)]
 pub struct PrimitiveType(pub(crate) &'static str);
 
-impl Display for PrimitiveType {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.0.fmt(f)
+impl AsRef<str> for PrimitiveType {
+    fn as_ref(&self) -> &str {
+        self.0
     }
 }
 

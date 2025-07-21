@@ -148,10 +148,11 @@ pub fn parser<'src>()
             // Parses function declarator suffix. Returns `SuffixInfo`.
             let func_suffix = choice((
                 // Special case: func(void) means no parameters
-                just("void").to(Vec::new()),
-                func_param_list,
-            ))
-            .delimited_by(just('(').padded(), just(')').padded());
+                just("void")
+                    .to(Vec::new())
+                    .delimited_by(just('(').padded(), just(')').padded()),
+                func_param_list.delimited_by(just('(').padded(), just(')').padded()),
+            ));
 
             // Parses atom with zero or more suffixes.
             // Returns `Declarator`.

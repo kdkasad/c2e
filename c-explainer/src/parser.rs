@@ -85,6 +85,7 @@ fn primitive_type_parser<'src>()
         ],
     ))
     .padded()
+    .labelled("primitive type")
 }
 
 /// Helper enum to represent the possible suffixes of a declarator. This is needed so we have one
@@ -107,9 +108,11 @@ pub fn parser<'src>()
             keyword("volatile").to(TypeQualifier::Volatile),
             keyword("restrict").to(TypeQualifier::Restrict),
         ))
+        .labelled("type qualifier")
         .padded()
         .repeated()
-        .collect::<TypeQualifiers>();
+        .collect::<TypeQualifiers>()
+        .labelled("type qualifier list");
 
         let primitive_type = primitive_type_parser();
         let r#type = choice((
@@ -120,7 +123,8 @@ pub fn parser<'src>()
                 .map(|k| RecordKind::from_str(k).unwrap())
                 .then(ident().padded())
                 .map(|(kind, id)| Type::Record(kind, id)),
-        ));
+        ))
+        .labelled("type");
         let qualified_type = qualifiers.clone().then(r#type).map(QualifiedType::from);
 
         let declarator = recursive(|declarator| {
@@ -131,16 +135,19 @@ pub fn parser<'src>()
                 declarator
                     .clone()
                     .delimited_by(just('(').padded(), just(')').padded()),
-            ));
+            ))
+            .labelled("declarator atom");
 
             // Parses array declarator suffix. Returns `SuffixInfo`.
             let array_suffix = int(10)
                 .try_map(|s, span| usize::from_str(s).map_err(|err| Rich::custom(span, err)))
                 .or_not()
-                .delimited_by(just('[').padded(), just(']').padded());
+                .delimited_by(just('[').padded(), just(']').padded())
+                .labelled("array brackets");
 
             // Parses function parameter list. Returns `Vec<Declaration>`.
             let func_param_list = declaration
+                .labelled("function parameter")
                 .separated_by(just(',').padded())
                 .allow_trailing()
                 .collect::<Vec<Declaration>>();
@@ -148,11 +155,12 @@ pub fn parser<'src>()
             // Parses function declarator suffix. Returns `SuffixInfo`.
             let func_suffix = choice((
                 // Special case: func(void) means no parameters
-                just("void")
-                    .to(Vec::new())
-                    .delimited_by(just('(').padded(), just(')').padded()),
+                keyword("void")
+                    .delimited_by(just('(').padded(), just(')').padded())
+                    .to(Vec::new()),
                 func_param_list.delimited_by(just('(').padded(), just(')').padded()),
-            ));
+            ))
+            .labelled("function parentheses");
 
             // Parses atom with zero or more suffixes.
             // Returns `Declarator`.
@@ -185,10 +193,12 @@ pub fn parser<'src>()
                 })
         });
 
+        // Parses a declaration. Returns `Declaration`.
         qualified_type
             .then(declarator)
             .map(Declaration::from)
             .padded()
+            .labelled("declaration")
     })
 }
 

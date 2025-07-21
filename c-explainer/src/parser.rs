@@ -535,4 +535,21 @@ mod tests {
                 .unwrap()
         );
     }
+
+    #[test]
+    fn parse_invalid_array_length() {
+        let result = parser().parse("int arr[x]");
+        let errors = result.into_errors();
+        assert_eq!(errors.len(), 1, "expected one error");
+        assert_eq!(errors[0].span().into_range(), 8..9, "error position mismatch");
+    }
+
+    #[test]
+    fn parse_out_of_bounds_array_length() {
+        let src = format!("int arr[{}0]", usize::MAX);
+        let result = parser().parse(&src);
+        let errors = result.into_errors();
+        assert_eq!(errors.len(), 1, "expected one error");
+        assert_eq!(errors[0].span().into_range(), 8..29, "error position mismatch");
+    }
 }

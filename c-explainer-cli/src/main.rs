@@ -40,6 +40,6 @@ fn main() -> ExitCode {
                 eprintln!("Error reading line: {err}");
                 return ExitCode::FAILURE;
             }
-        };
+        }
     }
 }

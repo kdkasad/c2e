@@ -143,6 +143,32 @@ mod tests {
     }
 
     #[test]
+    fn test_articulate() {
+        let mut s = String::new();
+        articulate(&mut s, "int");
+        assert_eq!(s, "an int");
+        s.clear();
+        articulate(&mut s, "cow");
+        assert_eq!(s, "a cow");
+        s.clear();
+        articulate(&mut s, "");
+        assert_eq!(s, "");
+    }
+
+    #[test]
+    fn test_make_plural() {
+        let test = |word, expected| {
+            let mut s = String::new();
+            make_plural(&mut s, word);
+            assert_eq!(s, expected);
+        };
+        test("cat", "cats");
+        test("box", "boxes");
+        test("int", "ints");
+        test("", "");
+    }
+
+    #[test]
     fn explain_ptr_to_primitive() {
         run("int *p", "\"p\", a pointer to an int");
     }
@@ -210,6 +236,27 @@ mod tests {
         run(
             "const char *const str",
             "\"str\", a const pointer to a const char",
+        );
+    }
+
+    #[test]
+    fn explain_struct_var() {
+        run("struct point p", "\"p\", struct point");
+    }
+
+    #[test]
+    fn explain_function_two_params() {
+        run(
+            "int add(int a, int b)",
+            r#""add", a function that takes "a", an int, and "b", an int and returns an int"#,
+        );
+    }
+
+    #[test]
+    fn explain_function_three_params() {
+        run(
+            "void print(int a, char *b, float c)",
+            r#""print", a function that takes "a", an int, "b", a pointer to a char, and "c", a float and returns a void"#,
         );
     }
 }

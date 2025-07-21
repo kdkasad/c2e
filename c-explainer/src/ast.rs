@@ -114,10 +114,8 @@ impl DerefMut for TypeQualifiers {
 /// ```
 impl Display for TypeQualifiers {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        for qualifier in self.iter() {
-            write!(f, "{qualifier} ")?;
-        }
-        Ok(())
+        self.iter()
+            .try_for_each(|qualifier| write!(f, "{qualifier} "))
     }
 }
 
@@ -156,4 +154,29 @@ pub enum Declarator<'src> {
         func: Box<Declarator<'src>>,
         params: Vec<Declaration<'src>>,
     },
+}
+
+#[cfg(test)]
+mod tests {
+    use alloc::string::ToString;
+
+    use super::*;
+
+    #[test]
+    fn test_primitive_type_as_ref() {
+        let int_type = PrimitiveType("int");
+        assert_eq!(AsRef::<str>::as_ref(&int_type), "int");
+    }
+
+    #[test]
+    fn type_qualifiers_display() {
+        let mut qualifiers = TypeQualifiers::default();
+        assert_eq!(qualifiers.to_string(), "");
+
+        qualifiers.insert(TypeQualifier::Const);
+        assert_eq!(qualifiers.to_string(), "const ");
+
+        qualifiers.insert(TypeQualifier::Volatile);
+        assert_eq!(qualifiers.to_string(), "const volatile ");
+    }
 }

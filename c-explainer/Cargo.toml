@@ -19,4 +19,4 @@ parse-display = { version = "0.10.0", default-features = false }
 thiserror = { version = "2.0.12", default-features = false }
 
 [dev-dependencies]
-pretty_assertions = { version = "1.4.1", default-features = false, features = ["alloc"] }
+pretty_assertions.workspace = true

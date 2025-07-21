@@ -15,3 +15,4 @@ rustyline = { version = "16.0.0", default-features = false }
 
 [dev-dependencies]
 rexpect = "0.6.2"
+pretty_assertions.workspace = true

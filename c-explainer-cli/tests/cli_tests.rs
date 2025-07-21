@@ -1,5 +1,10 @@
-use std::{process::Command, time::Duration};
+use std::{
+    io::Write,
+    process::{Command, Stdio},
+    time::Duration,
+};
 
+use pretty_assertions::assert_eq;
 use rexpect::session::{PtySession, spawn_command};
 
 fn spawn() -> PtySession {
@@ -57,4 +62,21 @@ fn test_parse_error() {
         .unwrap();
     c.exp_string("> ").unwrap();
     kill(c);
+}
+
+#[test]
+fn test_read_error() {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_c-explainer-cli"))
+        .stdin(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .unwrap();
+    c.stdin.as_mut().unwrap().write_all(&[200, 200]).unwrap();
+    let output = c.wait_with_output().unwrap();
+    let out_str = str::from_utf8(&output.stderr).unwrap();
+    println!("\"{out_str}\"");
+    assert_eq!(
+        out_str,
+        "Error reading line: stream did not contain valid UTF-8\n"
+    );
 }

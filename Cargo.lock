@@ -40,6 +40,7 @@ version = "0.0.0"
 dependencies = [
  "c-explainer",
  "chumsky",
+ "pretty_assertions",
  "rexpect",
  "rustyline",
 ]

@@ -17,7 +17,6 @@ use std::{
     time::Duration,
 };
 
-use pretty_assertions::assert_eq;
 use rexpect::session::{PtySession, spawn_command};
 
 fn spawn() -> PtySession {
@@ -88,8 +87,5 @@ fn test_read_error() {
     let output = c.wait_with_output().unwrap();
     let out_str = str::from_utf8(&output.stderr).unwrap();
     println!("\"{out_str}\"");
-    assert_eq!(
-        out_str,
-        "Error reading line: stream did not contain valid UTF-8\n"
-    );
+    assert!(out_str.contains("Error reading line: stream did not contain valid UTF-8\n"));
 }

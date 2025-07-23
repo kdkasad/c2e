@@ -11,6 +11,7 @@ rust-version.workspace = true
 [dependencies]
 c-explainer = { path = "../c-explainer", version = "*" }
 chumsky.workspace = true
+indoc = "2.0.6"
 rustyline = { version = "16.0.0", default-features = false }
 
 [dev-dependencies]

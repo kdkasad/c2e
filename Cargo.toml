@@ -12,18 +12,31 @@
 #
 
 [workspace]
+members = [
+    "c-explainer",
+    "c-explainer-cli",
+    "c-explainer-wasm",
+]
 resolver = "3"
-members  = ["c-explainer", "c-explainer-cli"]
 
 [workspace.package]
-authors      = ["Kian Kasad <kian@kasad.com>"]
-description  = "C declaration/type explainer"
-repository   = "https://github.com/kdkasad/c-explainer"
-license      = "GPL-3.0-or-later"
-
-edition      = "2024"
+authors = ["Kian Kasad <kian@kasad.com>"]
+description = "C declaration/type explainer"
+license = "GPL-3.0-or-later"
+repository = "https://github.com/kdkasad/c-explainer"
+edition = "2024"
 rust-version = "1.88"
 
-[workspace.dependencies]
-chumsky = { version = "0.10.1", default-features = false }
-pretty_assertions = { version = "1.4.1", default-features = false, features = ["alloc"] }
+[workspace.dependencies.chumsky]
+version = "0.10.1"
+default-features = false
+
+[workspace.dependencies.pretty_assertions]
+version = "1.4.1"
+features = ["alloc"]
+default-features = false
+
+[profile.wasm]
+inherits = "release"
+opt-level = "s"
+lto = true

@@ -11,16 +11,17 @@
  * not, see <https://www.gnu.org/licenses/>.
  */
 
-#![no_std]
+//! JS bindings for [`c_explainer`].
 
-// Enable use of types which require heap memory.
-extern crate alloc;
+use c_explainer::{chumsky::Parser, explainer::explain_declaration};
+use wasm_bindgen::prelude::*;
 
-pub mod ast;
-pub mod explainer;
-pub mod parser;
-
-/// Re-export the [`chumsky`] crate's prelude for convenience.
-pub mod chumsky {
-    pub use chumsky::prelude::*;
+/// Explain the given C source code declaration.
+#[wasm_bindgen]
+pub fn explain(src: &str) -> Result<String, Vec<String>> {
+    c_explainer::parser::parser()
+        .parse(src)
+        .into_result()
+        .map(|decl| explain_declaration(&decl))
+        .map_err(|errs| errs.into_iter().map(|err| err.to_string()).collect())
 }

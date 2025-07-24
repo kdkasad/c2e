@@ -37,7 +37,7 @@ initExplainer()
             }
         });
     })
-    .catch((err) => {
+    .catch((err: unknown) => {
         showError(`Error initializing WASM module: ${err}`);
         console.error("Error initializing WASM module:", err);
     });

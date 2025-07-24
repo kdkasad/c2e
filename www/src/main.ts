@@ -5,15 +5,16 @@ const input = document.getElementById("input")! as HTMLTextAreaElement;
 const output = document.getElementById("output")!;
 
 const initialCode = "const char *foo(int bar)";
+const errorColorClass = "text-red-400";
 
 function showOutput(text: string) {
     output.textContent = text;
-    output.classList.remove("text-red-300");
+    output.classList.remove(errorColorClass);
 }
 
 function showError(text: string) {
     output.textContent = text;
-    output.classList.add("text-red-400");
+    output.classList.add(errorColorClass);
 }
 
 // Set the initial declaration in the input textarea

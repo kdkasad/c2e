@@ -111,8 +111,7 @@ pub fn parser<'src>()
         .labelled("type qualifier")
         .padded()
         .repeated()
-        .collect::<TypeQualifiers>()
-        .labelled("type qualifier list");
+        .collect::<TypeQualifiers>();
 
         let primitive_type = primitive_type_parser();
         let r#type = choice((
@@ -135,8 +134,7 @@ pub fn parser<'src>()
                 declarator
                     .clone()
                     .delimited_by(just('(').padded(), just(')').padded()),
-            ))
-            .labelled("declarator atom");
+            ));
 
             // Parses array declarator suffix. Returns `SuffixInfo`.
             let array_suffix = int(10)
@@ -198,7 +196,6 @@ pub fn parser<'src>()
             .then(declarator)
             .map(Declaration::from)
             .padded()
-            .labelled("declaration")
     })
 }
 

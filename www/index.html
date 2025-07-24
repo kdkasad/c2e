@@ -6,8 +6,10 @@
         <title>C Declaration Explainer</title>
     </head>
     <body>
-        <h1>C Declaration Explainer</h1>
-        <pre><code id="output"></code></pre>
+        <div class="size-full flex flex-col justify-stretch items-stretch">
+            <textarea id="input" autocomplete="off" autocorrect="off" autofocus placeholder="const char *foo(int bar)"></textarea>
+            <pre><code id="output">"foo", a function which takes "bar", an int and returns a pointer to a const char</code></pre>
+        </div>
         <script type="module" src="/src/main.ts"></script>
     </body>
 </html>

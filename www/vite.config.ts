@@ -1,11 +1,14 @@
-import { defineConfig } from 'vite'
+import { defineConfig } from 'vite';
+import tailwindcss from '@tailwindcss/vite';
 
 export default defineConfig({
-  // Add this server configuration
-  server: {
-    fs: {
-      // Allow serving files from the repository root
-      allow: ['..']
+    plugins: [
+        tailwindcss(),
+    ],
+    server: {
+        fs: {
+            // Allow serving files from the repository root
+            allow: ['..']
+        }
     }
-  }
 })

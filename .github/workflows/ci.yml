@@ -111,6 +111,8 @@ jobs:
       checks: write
       pull-requests: write
       contents: read
+    env:
+      RUSTFLAGS: ''
     steps:
       - name: Check out sources
         uses: actions/checkout@v4

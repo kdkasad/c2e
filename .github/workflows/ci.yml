@@ -236,7 +236,7 @@ jobs:
         run: cd c-explainer-wasm && wasm-pack build -t web --release
 
       - name: Install JS dependencies
-        run: cd www && bun install
+        run: cd www && bun install --frozen-lockfile
 
       - name: Build site
         run: cd www && bun run build

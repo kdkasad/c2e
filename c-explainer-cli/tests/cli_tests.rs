@@ -70,7 +70,7 @@ fn test_parse_error() {
     let mut c = spawn();
     c.exp_string("> ").unwrap();
     c.send_line("int x = 5;").unwrap();
-    c.exp_string("Error(s) parsing declaration:\r\nfound '=' expected '[', '(', or end of input")
+    c.exp_string("Error(s) parsing declaration:\r\nat 6..7: expected '[', '(', or end of input, but found '='")
         .unwrap();
     c.exp_string("> ").unwrap();
     kill(c);

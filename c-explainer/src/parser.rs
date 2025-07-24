@@ -26,10 +26,13 @@ use crate::ast::{
     TypeQualifiers,
 };
 
+mod error;
+
+pub type Err<'src> = chumsky::extra::Err<error::RichWrapper<'src>>;
+
 /// From <https://www.open-std.org/jtc1/sc22/WG14/www/docs/n1256.pdf> section 6.7.2.
 #[must_use]
-fn primitive_type_parser<'src>()
--> impl Parser<'src, &'src str, PrimitiveType, chumsky::extra::Err<Rich<'src, char>>> + Clone {
+fn primitive_type_parser<'src>() -> impl Parser<'src, &'src str, PrimitiveType, Err<'src>> + Clone {
     /// Macro to generate choices from a nicer syntax.
     /// Turns something like `unsigned long int` into
     /// `keyword("unsigned").padded().then(keyword("long").padded()).then(keyword("int").padded)`.
@@ -99,8 +102,7 @@ enum SuffixInfo<'src> {
 
 /// Returns a parser which parses a C declaration.
 #[must_use]
-pub fn parser<'src>()
--> impl Parser<'src, &'src str, Declaration<'src>, chumsky::extra::Err<Rich<'src, char>>> {
+pub fn parser<'src>() -> impl Parser<'src, &'src str, Declaration<'src>, Err<'src>> {
     recursive(|declaration| {
         // Parses zero or more type qualifiers. Returns `TypeQualifiers`.
         let qualifiers = choice((
@@ -138,7 +140,7 @@ pub fn parser<'src>()
 
             // Parses array declarator suffix. Returns `SuffixInfo`.
             let array_suffix = int(10)
-                .try_map(|s, span| usize::from_str(s).map_err(|err| Rich::custom(span, err)))
+                .try_map(|s, span| usize::from_str(s).map_err(|err| Rich::custom(span, err).into()))
                 .or_not()
                 .delimited_by(just('[').padded(), just(']').padded())
                 .labelled("array brackets");
@@ -203,7 +205,7 @@ pub fn parser<'src>()
 mod tests {
     use super::*;
 
-    use alloc::{format, vec, vec::Vec};
+    use alloc::{format, string::ToString, vec, vec::Vec};
     use pretty_assertions::assert_eq;
 
     /// Qualified version of [`primitive()`].
@@ -555,6 +557,10 @@ mod tests {
             errors[0].span().into_range(),
             8..29,
             "error position mismatch"
+        );
+        assert_eq!(
+            errors[0].to_string(),
+            "at 8..29: number too large to fit in target type"
         );
     }
 }

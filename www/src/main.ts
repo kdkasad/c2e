@@ -4,7 +4,7 @@ import initExplainer, { explain } from "c-explainer-wasm";
 const input = document.getElementById("input")! as HTMLTextAreaElement;
 const output = document.getElementById("output")!;
 
-const initialCode = "const char *foo(int bar)";
+const defaultInitialCode = "const char *foo(int bar)";
 const errorColorClass = "text-red-400";
 
 function showOutput(text: string) {
@@ -17,8 +17,9 @@ function showError(text: string) {
     output.classList.add(errorColorClass);
 }
 
-// Set the initial declaration in the input textarea
-input.value = initialCode;
+// Set the initial declaration based on the URL parameter or default value
+const url = new URL(window.location.toString());
+input.value = url.searchParams.get("code") ?? defaultInitialCode;
 
 output.textContent = "Loading WASM module...";
 initExplainer()
@@ -29,6 +30,8 @@ initExplainer()
         output.textContent = explain(input.value);
         // Add an event listener to update the output when the input changes
         input.addEventListener("input", () => {
+            url.searchParams.set("code", input.value);
+            window.history.replaceState(null, "", url.toString());
             try {
                 showOutput(explain(input.value));
             } catch (err) {
@@ -37,7 +40,7 @@ initExplainer()
             }
         });
     })
-    .catch((err) => {
+    .catch((err: unknown) => {
         showError(`Error initializing WASM module: ${err}`);
         console.error("Error initializing WASM module:", err);
     });

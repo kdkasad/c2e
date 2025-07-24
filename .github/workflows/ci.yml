@@ -43,7 +43,7 @@ env:
 
 jobs:
   clippy:
-    name: Lint code
+    name: Lint code (Rust)
     runs-on: ubuntu-latest
     steps:
       - name: Check out sources
@@ -61,7 +61,7 @@ jobs:
         run: cargo clippy --all-targets --workspace --locked
 
   fmt:
-    name: Check formatting
+    name: Check formatting (Rust)
     runs-on: ubuntu-latest
     steps:
       - name: Check out sources
@@ -77,6 +77,32 @@ jobs:
 
       - name: Check formatting
         run: cargo fmt --check --all
+
+  prettier:
+    name: Check formatting (WWW)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Cache dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.bun/install/global
+          key: bun-global-${{ github.ref }}-${{ github.sha }}
+          restore-keys: |
+            bun-global-${{ github.ref }}-${{ github.sha }}
+            bun-global-${{ github.ref }}-
+            bun-global-
+
+      - name: Install Prettier
+        run: bun install -g prettier
+
+      - name: Check formatting
+        run: bun run prettier -c www
 
   test:
     name: Run tests
@@ -178,3 +204,63 @@ jobs:
 
       - name: Compile project
         run: cargo doc --no-deps --document-private-items --workspace --all-features --locked
+
+  build-site:
+    name: Build site
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out sources
+        uses: actions/checkout@v4
+
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache build artifacts
+        uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-pack
+        run: cargo install wasm-pack
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Cache JS dependencies
+        uses: actions/cache@v4
+        with:
+          path: www/node_modules
+          key: bun-${{ hashFiles('www/bun.lockb') }}
+
+      - name: Build WASM library
+        run: cd c-explainer-wasm && wasm-pack build -t web --release
+
+      - name: Install JS dependencies
+        run: cd www && bun install
+
+      - name: Build site
+        run: cd www && bun run build
+
+      - name: Upload static files as artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: www/dist/
+
+  deploy-site:
+    name: Deploy site to GitHub Pages
+    if: github.event_name == 'push' && github.ref_name == 'master'
+    needs:
+      - build-site
+      - clippy
+      - test
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy site
+        id: deployment
+        uses: actions/deploy-pages@v4

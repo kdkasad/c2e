@@ -16,6 +16,10 @@
 use c_explainer::{chumsky::Parser, explainer::explain_declaration};
 use wasm_bindgen::prelude::*;
 
+#[cfg(feature = "wee_alloc")]
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
 /// Explain the given C source code declaration.
 #[wasm_bindgen]
 pub fn explain(src: &str) -> Result<String, Vec<String>> {

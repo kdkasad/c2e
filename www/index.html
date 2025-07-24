@@ -1,21 +1,44 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" class="h-full">
     <head>
         <meta charset="UTF-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>C Declaration Explainer</title>
     </head>
-    <body>
-        <div class="size-full flex flex-col justify-stretch items-stretch">
-            <textarea
-                id="input"
-                autocomplete="off"
-                autocorrect="off"
-                autofocus
-                placeholder="const char *foo(int bar)"
-            ></textarea>
-            <pre><code id="output">"foo", a function which takes "bar", an int and returns a pointer to a const char</code></pre>
-        </div>
+    <body class="h-full overflow-hidden bg-neutral-800 text-neutral-400">
+        <!-- Main Content Area (Split Screen) -->
+        <main id="split-container" class="flex h-full w-full">
+            <!-- Left Panel: Input -->
+            <div class="flex-1 p-8 flex flex-col overflow-hidden">
+                <label
+                    for="code-input"
+                    class="mb-4 text-sm font-semibold uppercase tracking-wider"
+                    >Input</label
+                >
+                <textarea
+                    id="input"
+                    class="flex-1 w-full font-mono text-xl bg-transparent resize-none focus:outline-none text-gray-200"
+                    placeholder="int *p"
+                    spellcheck="false"
+                    disabled
+                ></textarea>
+            </div>
+
+            <!-- Right Panel: Output -->
+            <div
+                class="flex-1 p-8 flex flex-col bg-neutral-900 bg-opacity-10 overflow-hidden"
+            >
+                <h2 class="mb-4 text-sm font-semibold uppercase tracking-wider">
+                    Explanation
+                </h2>
+                <div class="flex-1 overflow-y-auto">
+                    <pre
+                        id="output"
+                        class="whitespace-pre-wrap font-mono text-xl"
+                    ></pre>
+                </div>
+            </div>
+        </main>
         <script type="module" src="/src/main.ts"></script>
     </body>
 </html>

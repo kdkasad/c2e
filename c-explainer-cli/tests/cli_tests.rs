@@ -70,7 +70,7 @@ fn test_parse_error() {
     let mut c = spawn();
     c.exp_string("> ").unwrap();
     c.send_line("int x = 5;").unwrap();
-    c.exp_string("Error(s) parsing declaration:\r\nfound '=' expected '[', '(', or end of input")
+    c.exp_string("Error(s) parsing declaration:\r\nat 6..7: expected '[', '(', or end of input, but found '='")
         .unwrap();
     c.exp_string("> ").unwrap();
     kill(c);
@@ -88,4 +88,15 @@ fn test_read_error() {
     let out_str = str::from_utf8(&output.stderr).unwrap();
     println!("\"{out_str}\"");
     assert!(out_str.contains("Error reading line: stream did not contain valid UTF-8\n"));
+}
+
+#[test]
+fn test_print_license() {
+    let mut c = spawn();
+    c.exp_string("> ").unwrap();
+    c.send_line("@license").unwrap();
+    let output = c.exp_string("> ").unwrap();
+    kill(c);
+    assert!(output.contains("GNU General Public License"));
+    assert!(output.contains(env!("CARGO_PKG_REPOSITORY")));
 }

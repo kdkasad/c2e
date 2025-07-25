@@ -95,6 +95,7 @@ fn explain_declarator(declarator: &Declarator) -> (String, Plurality) {
             if params.is_empty() {
                 explanation.push_str("no parameters");
             } else {
+                explanation.push('(');
                 for (i, param) in params.iter().enumerate() {
                     if i > 0 {
                         if i == params.len() - 1 {
@@ -106,6 +107,7 @@ fn explain_declarator(declarator: &Declarator) -> (String, Plurality) {
                     let param_explanation = explain_declaration(param);
                     explanation.push_str(&param_explanation);
                 }
+                explanation.push(')');
             }
             explanation.push_str(match plurality {
                 Plurality::Singular => " and returns ",
@@ -221,7 +223,7 @@ mod tests {
     fn explain_array_of_functions() {
         run(
             "char *(*(*bar)[5])(int)",
-            "\"bar\", a pointer to an array of 5 pointers to functions that take an int and return a pointer to a char",
+            "\"bar\", a pointer to an array of 5 pointers to functions that take (an int) and return a pointer to a char",
         );
     }
 
@@ -248,7 +250,7 @@ mod tests {
     fn explain_function_two_params() {
         run(
             "int add(int a, int b)",
-            r#""add", a function that takes "a", an int, and "b", an int and returns an int"#,
+            r#""add", a function that takes ("a", an int, and "b", an int) and returns an int"#,
         );
     }
 
@@ -256,7 +258,7 @@ mod tests {
     fn explain_function_three_params() {
         run(
             "void print(int a, char *b, float c)",
-            r#""print", a function that takes "a", an int, "b", a pointer to a char, and "c", a float and returns a void"#,
+            r#""print", a function that takes ("a", an int, "b", a pointer to a char, and "c", a float) and returns a void"#,
         );
     }
 }

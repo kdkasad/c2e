@@ -18,33 +18,50 @@ function showError(text: string) {
     output.classList.add(errorColorClass);
 }
 
+// Returns a promise that rejects after a specified time
+function rejectAfter(ms: number): Promise<void> {
+    return new Promise((_resolve, reject) =>
+        setTimeout(
+            reject,
+            ms,
+            new Error(`Timed out after ${ms / 1000} seconds`),
+        ),
+    );
+}
+
+function processInput() {
+    url.searchParams.set("code", input.value);
+    window.history.replaceState(null, "", url.toString());
+    try {
+        showOutput(explain(input.value));
+    } catch (err) {
+        let errors = err as string[];
+        showError(errors.join("\n"));
+    }
+}
+
 // Set the version in the footer
 versionSpan.textContent = `v${PKG_VERSION}`;
 
 // Set the initial declaration based on the URL parameter or default value
 const url = new URL(window.location.toString());
-input.value = url.searchParams.get("code") ?? defaultInitialCode;
+const codeFromUrl = url.searchParams.get("code");
+input.value = codeFromUrl || defaultInitialCode;
 
-output.textContent = "Loading WASM module...";
-initExplainer()
+// Load the WASM module with a timeout
+const wasmLoadTimeoutMS = 10000; // 10 seconds
+showOutput("Loading WASM module...");
+Promise.race([initExplainer(), rejectAfter(wasmLoadTimeoutMS)])
     .then(() => {
-        // Enable the input field once the WASM module is loaded
-        input.disabled = false;
         // Set the initial output based on the initial code
-        output.textContent = explain(input.value);
+        processInput();
         // Add an event listener to update the output when the input changes
-        input.addEventListener("input", () => {
-            url.searchParams.set("code", input.value);
-            window.history.replaceState(null, "", url.toString());
-            try {
-                showOutput(explain(input.value));
-            } catch (err) {
-                let errors = err as string[];
-                showError(errors.join("\n"));
-            }
-        });
+        input.addEventListener("input", processInput);
     })
     .catch((err: unknown) => {
-        showError(`Error initializing WASM module: ${err}`);
+        showError(
+            `Error initializing WASM module: ${err}. ` +
+                `Ensure your browser supports WebAssembly, then try again.`,
+        );
         console.error("Error initializing WASM module:", err);
     });

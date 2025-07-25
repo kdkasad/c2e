@@ -3,6 +3,7 @@ import initExplainer, { explain } from "c-explainer-wasm";
 
 const input = document.getElementById("input")! as HTMLTextAreaElement;
 const output = document.getElementById("output")!;
+const versionSpan = document.getElementById("version")!;
 
 const defaultInitialCode = "const char *foo(int bar)";
 const errorColorClass = "text-red-400";
@@ -16,6 +17,9 @@ function showError(text: string) {
     output.textContent = text;
     output.classList.add(errorColorClass);
 }
+
+// Set the version in the footer
+versionSpan.textContent = `v${PKG_VERSION}`;
 
 // Set the initial declaration based on the URL parameter or default value
 const url = new URL(window.location.toString());

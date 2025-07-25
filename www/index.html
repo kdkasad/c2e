@@ -5,7 +5,9 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0" />
         <title>C Declaration Explainer</title>
     </head>
-    <body class="h-full overflow-hidden bg-neutral-800 text-neutral-400">
+    <body
+        class="h-full overflow-hidden font-mono bg-neutral-800 text-neutral-400"
+    >
         <!-- Main Content Area (Split Screen) -->
         <main
             id="split-container"
@@ -20,7 +22,7 @@
                 >
                 <textarea
                     id="input"
-                    class="flex-1 w-full font-mono text-xl bg-transparent resize-none focus:outline-none text-gray-200"
+                    class="flex-1 w-full text-xl bg-transparent resize-none focus:outline-none text-gray-200"
                     placeholder="int *p"
                     spellcheck="false"
                     disabled
@@ -35,12 +37,21 @@
                     Explanation
                 </h2>
                 <div class="flex-1 overflow-y-auto">
-                    <pre
-                        id="output"
-                        class="whitespace-pre-wrap font-mono text-xl"
-                    ></pre>
+                    <pre id="output" class="whitespace-pre-wrap text-xl"></pre>
                 </div>
             </div>
+            <!-- Attribution -->
+            <footer
+                class="absolute bottom-0 left-0 right-0 p-4 text-xs sm:text-sm md:text-md"
+            >
+                <a
+                    href="https://github.com/kdkasad/c-explainer"
+                    class="hover:underline flex flex-row justify-between gap-4"
+                >
+                    <span> Written in 🦀 Rust by Kian Kasad </span>
+                    <span id="version"></span>
+                </a>
+            </footer>
         </main>
         <script type="module" src="/src/main.ts"></script>
     </body>

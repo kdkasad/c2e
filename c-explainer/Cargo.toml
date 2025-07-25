@@ -13,6 +13,7 @@
 
 [package]
 name = "c-explainer"
+version.workspace = true
 authors.workspace = true
 description.workspace = true
 repository.workspace = true

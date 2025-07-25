@@ -20,6 +20,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
+version = "0.0.1"
 authors = ["Kian Kasad <kian@kasad.com>"]
 description = "C declaration/type explainer"
 license = "GPL-3.0-or-later"

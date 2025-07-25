@@ -1,6 +1,6 @@
 [package]
 name = "c-explainer-cli"
-version = "0.0.0"
+version.workspace = true
 authors.workspace = true
 description.workspace = true
 repository.workspace = true

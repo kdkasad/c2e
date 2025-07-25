@@ -5,7 +5,7 @@ const input = document.getElementById("input")! as HTMLTextAreaElement;
 const output = document.getElementById("output")!;
 const versionSpan = document.getElementById("version")!;
 
-const defaultInitialCode = "const char *foo(int bar)";
+const defaultInitialCode = `char *const (*(*foo)(const int *[]))[3]`;
 const errorColorClass = "text-red-400";
 
 function showOutput(text: string) {

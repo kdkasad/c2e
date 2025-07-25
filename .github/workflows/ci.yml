@@ -24,6 +24,7 @@ run-name: |
 on:
   push:
     paths:
+      - "www/**"
       - "*/src/**"
       - "*/tests/**"
       - "*/examples/**"

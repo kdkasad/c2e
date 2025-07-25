@@ -89,3 +89,14 @@ fn test_read_error() {
     println!("\"{out_str}\"");
     assert!(out_str.contains("Error reading line: stream did not contain valid UTF-8\n"));
 }
+
+#[test]
+fn test_print_license() {
+    let mut c = spawn();
+    c.exp_string("> ").unwrap();
+    c.send_line("@license").unwrap();
+    let output = c.exp_string("> ").unwrap();
+    kill(c);
+    assert!(output.contains("GNU General Public License"));
+    assert!(output.contains(env!("CARGO_PKG_REPOSITORY")));
+}

@@ -15,10 +15,7 @@
 
 use core::fmt::Write;
 
-use alloc::{
-    format,
-    string::{String, ToString},
-};
+use alloc::string::{String, ToString};
 
 use crate::ast::{Declaration, Declarator, QualifiedType, Type};
 
@@ -48,72 +45,139 @@ fn make_plural(dst: &mut String, noun: &str) {
 
 #[must_use]
 pub fn explain_declaration(decl: &Declaration) -> String {
-    let (mut explanation, plurality) = explain_declarator(&decl.declarator);
-    match (decl.base_type, plurality) {
+    explain_declaration_impl(decl).msg
+}
+
+#[derive(Debug)]
+struct Explanation {
+    /// Name of the root identifier being explained
+    identifier_name: Option<String>,
+    /// String containing English explanation
+    msg: String,
+    plurality: Plurality,
+}
+
+impl Explanation {
+    fn new() -> Self {
+        Self {
+            identifier_name: None,
+            msg: String::new(),
+            plurality: Plurality::Singular,
+        }
+    }
+
+    /// Sets `identifier_name` to the given name.
+    fn with_identifier_name(mut self, name: String) -> Self {
+        self.identifier_name = Some(name);
+        self
+    }
+
+    /// Clears `identifier_name`.
+    fn unnamed(mut self) -> Self {
+        self.identifier_name = None;
+        self
+    }
+
+    /// Sets `plurality` to [`Plurality::Singular`].
+    fn singular(mut self) -> Self {
+        self.plurality = Plurality::Singular;
+        self
+    }
+
+    /// Sets `plurality` to [`Plurality::Plural`].
+    fn plural(mut self) -> Self {
+        self.plurality = Plurality::Plural;
+        self
+    }
+}
+
+fn explain_declaration_impl(decl: &Declaration) -> Explanation {
+    let mut explanation = explain_declarator(&decl.declarator);
+    match (decl.base_type, explanation.plurality) {
         (QualifiedType(_, Type::Primitive(_)), Plurality::Singular) => {
-            articulate(&mut explanation, &decl.base_type.to_string());
+            articulate(&mut explanation.msg, &decl.base_type.to_string());
         }
         (QualifiedType(_, Type::Primitive(_)), Plurality::Plural) => {
-            make_plural(&mut explanation, &decl.base_type.to_string());
+            make_plural(&mut explanation.msg, &decl.base_type.to_string());
         }
-        (qt, _) => write!(&mut explanation, "{qt}").unwrap(),
+        (qt, Plurality::Singular) => articulate(&mut explanation.msg, &qt.to_string()),
+        (qt, _) => write!(&mut explanation.msg, "{qt}").unwrap(),
+    }
+    if let Plurality::Singular = explanation.plurality
+        && let Some(name) = &explanation.identifier_name
+    {
+        write!(&mut explanation.msg, " named {name}").unwrap();
     }
     explanation
 }
 
 #[must_use]
-fn explain_declarator(declarator: &Declarator) -> (String, Plurality) {
+fn explain_declarator(declarator: &Declarator) -> Explanation {
     match declarator {
-        Declarator::Anonymous => (String::new(), Plurality::Singular),
-        Declarator::Ident(name) => (format!("\"{name}\", "), Plurality::Singular),
+        Declarator::Anonymous => Explanation::new(),
+        Declarator::Ident(name) => Explanation::new().with_identifier_name((*name).to_string()),
         Declarator::Ptr(inner, qualifiers) => {
-            let (mut explanation, plurality) = explain_declarator(inner);
-            match plurality {
-                Plurality::Singular => write!(&mut explanation, "a {qualifiers}pointer to "),
-                Plurality::Plural => write!(&mut explanation, "{qualifiers}pointers to "),
+            let mut sub = explain_declarator(inner);
+            match sub.plurality {
+                Plurality::Singular => write!(&mut sub.msg, "a {qualifiers}pointer "),
+                Plurality::Plural => write!(&mut sub.msg, "{qualifiers}pointers "),
             }
             .unwrap();
-            (explanation, plurality)
+            if let Some(name) = &sub.identifier_name {
+                write!(&mut sub.msg, "named {name} ").unwrap();
+            }
+            sub.msg.push_str("to ");
+            sub.unnamed()
         }
         Declarator::Array(inner, len) => {
-            let (mut explanation, plurality) = explain_declarator(inner);
-            explanation.push_str(match plurality {
-                Plurality::Singular => "an array of ",
-                Plurality::Plural => "arrays of ",
+            let mut sub = explain_declarator(inner);
+            sub.msg.push_str(match sub.plurality {
+                Plurality::Singular => "an array ",
+                Plurality::Plural => "arrays ",
             });
-            if let Some(len) = len {
-                write!(&mut explanation, "{len} ").unwrap();
+            if let Some(name) = &sub.identifier_name {
+                write!(&mut sub.msg, "named {name} ").unwrap();
             }
-            (explanation, Plurality::Plural)
+            sub.msg.push_str("of ");
+            if let Some(len) = len {
+                write!(&mut sub.msg, "{len} ").unwrap();
+            }
+            sub.unnamed().plural()
         }
         Declarator::Function { func, params } => {
-            let (mut explanation, plurality) = explain_declarator(func);
-            explanation.push_str(match plurality {
-                Plurality::Singular => "a function that takes ",
-                Plurality::Plural => "functions that take ",
-            });
-            if params.is_empty() {
-                explanation.push_str("no parameters");
-            } else {
-                explanation.push('(');
-                for (i, param) in params.iter().enumerate() {
-                    if i > 0 {
-                        if i == params.len() - 1 {
-                            explanation.push_str(", and ");
-                        } else {
-                            explanation.push_str(", ");
-                        }
-                    }
-                    let param_explanation = explain_declaration(param);
-                    explanation.push_str(&param_explanation);
+            let mut sub = explain_declarator(func);
+            match (&sub.identifier_name, sub.plurality) {
+                (None, Plurality::Singular) => write!(&mut sub.msg, "a function that takes "),
+                (None, Plurality::Plural) => write!(&mut sub.msg, "functions that take "),
+                (Some(name), Plurality::Singular) => {
+                    write!(&mut sub.msg, "a function named {name} that takes ")
                 }
-                explanation.push(')');
+                (Some(_), Plurality::Plural) => unreachable!("an identifier cannot be plural"),
             }
-            explanation.push_str(match plurality {
+            .unwrap();
+            match &params[..] {
+                [] => sub.msg.push_str("no parameters"),
+                [param] => write!(&mut sub.msg, "({})", explain_declaration(param)).unwrap(),
+                [a, b] => write!(
+                    &mut sub.msg,
+                    "({} and {})",
+                    explain_declaration(a),
+                    explain_declaration(b)
+                )
+                .unwrap(),
+                [rest @ .., last] => {
+                    sub.msg.push('(');
+                    for param in rest {
+                        write!(&mut sub.msg, "{}, ", explain_declaration(param)).unwrap();
+                    }
+                    write!(&mut sub.msg, "and {})", explain_declaration(last)).unwrap();
+                }
+            }
+            sub.msg.push_str(match sub.plurality {
                 Plurality::Singular => " and returns ",
                 Plurality::Plural => " and return ",
             });
-            (explanation, Plurality::Singular)
+            sub.unnamed().singular()
         }
     }
 }
@@ -134,14 +198,14 @@ mod tests {
 
     #[test]
     fn explain_primitive_var() {
-        run("int x", "\"x\", an int");
+        run("int x", "an int named x");
     }
 
     /// Ensures "a" and "an" are used appropriately.
     #[test]
     fn test_articles() {
-        run("int x", "\"x\", an int");
-        run("signed int x", "\"x\", a signed int");
+        run("int x", "an int named x");
+        run("signed int x", "a signed int named x");
     }
 
     #[test]
@@ -172,24 +236,24 @@ mod tests {
 
     #[test]
     fn explain_ptr_to_primitive() {
-        run("int *p", "\"p\", a pointer to an int");
+        run("int *p", "a pointer named p to an int");
     }
 
     #[test]
     fn explain_array_of_primitive() {
-        run("int arr[]", "\"arr\", an array of ints");
+        run("int arr[]", "an array named arr of ints");
     }
 
     #[test]
     fn explain_array_of_primitive_with_size() {
-        run("int arr[10]", "\"arr\", an array of 10 ints");
+        run("int arr[10]", "an array named arr of 10 ints");
     }
 
     #[test]
     fn explain_2d_array_of_primitive() {
         run(
             "int arr[10][20]",
-            "\"arr\", an array of 10 arrays of 20 ints",
+            "an array named arr of 10 arrays of 20 ints",
         );
     }
 
@@ -197,25 +261,25 @@ mod tests {
     fn explain_nested_ptrs() {
         run(
             "char ***p",
-            "\"p\", a pointer to a pointer to a pointer to a char",
+            "a pointer named p to a pointer to a pointer to a char",
         );
     }
 
     #[test]
     fn explain_array_of_ptrs() {
-        run("int *arr[10]", "\"arr\", an array of 10 pointers to ints");
+        run("int *arr[10]", "an array named arr of 10 pointers to ints");
     }
 
     #[test]
     fn explain_ptr_to_array() {
-        run("int (*p)[10]", "\"p\", a pointer to an array of 10 ints");
+        run("int (*p)[10]", "a pointer named p to an array of 10 ints");
     }
 
     #[test]
     fn explain_function_with_no_params() {
         run(
             "void func()",
-            "\"func\", a function that takes no parameters and returns a void",
+            "a function named func that takes no parameters and returns a void",
         );
     }
 
@@ -223,34 +287,58 @@ mod tests {
     fn explain_array_of_functions() {
         run(
             "char *(*(*bar)[5])(int)",
-            "\"bar\", a pointer to an array of 5 pointers to functions that take (an int) and return a pointer to a char",
+            "a pointer named bar to an array of 5 pointers to functions that take (an int) and return a pointer to a char",
         );
     }
 
     #[test]
     fn explain_qualifiers() {
-        run("const int x", "\"x\", a const int");
-        run("volatile int x", "\"x\", a volatile int");
+        run("const int x", "a const int named x");
+        run("volatile int x", "a volatile int named x");
         run(
             "int *const restrict x",
-            "\"x\", a const restrict pointer to an int",
+            "a const restrict pointer named x to an int",
         );
         run(
             "const char *const str",
-            "\"str\", a const pointer to a const char",
+            "a const pointer named str to a const char",
         );
     }
 
     #[test]
     fn explain_struct_var() {
-        run("struct point p", "\"p\", struct point");
+        run("struct point p", "a struct point named p");
+    }
+
+    #[test]
+    fn explain_function_one_unnamed_param() {
+        run(
+            "int foo(const char *)",
+            "a function named foo that takes (a pointer to a const char) and returns an int",
+        );
+    }
+
+    #[test]
+    fn explain_function_one_named_param() {
+        run(
+            "int foo(const char *bar)",
+            "a function named foo that takes (a pointer named bar to a const char) and returns an int",
+        );
+    }
+
+    #[test]
+    fn explain_anonymous_function() {
+        run(
+            "int (*)(const char *)",
+            "a pointer to a function that takes (a pointer to a const char) and returns an int",
+        );
     }
 
     #[test]
     fn explain_function_two_params() {
         run(
             "int add(int a, int b)",
-            r#""add", a function that takes ("a", an int, and "b", an int) and returns an int"#,
+            "a function named add that takes (an int named a and an int named b) and returns an int",
         );
     }
 
@@ -258,7 +346,12 @@ mod tests {
     fn explain_function_three_params() {
         run(
             "void print(int a, char *b, float c)",
-            r#""print", a function that takes ("a", an int, "b", a pointer to a char, and "c", a float) and returns a void"#,
+            "a function named print that takes (an int named a, a pointer named b to a char, and a float named c) and returns a void",
         );
+    }
+
+    #[test]
+    fn explain_array_of_struct() {
+        run("struct point p[]", "an array named p of struct point");
     }
 }

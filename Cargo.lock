@@ -31,7 +31,7 @@ checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
 name = "c2e"
-version = "0.0.1-pre1"
+version = "0.0.1"
 dependencies = [
  "chumsky",
  "enumflags2",
@@ -42,7 +42,7 @@ dependencies = [
 
 [[package]]
 name = "c2e-cli"
-version = "0.0.1-pre1"
+version = "0.0.1"
 dependencies = [
  "c2e",
  "chumsky",
@@ -54,7 +54,7 @@ dependencies = [
 
 [[package]]
 name = "c2e-wasm"
-version = "0.0.1-pre1"
+version = "0.0.1"
 dependencies = [
  "c2e",
  "pretty_assertions",

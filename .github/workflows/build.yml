@@ -46,41 +46,41 @@ jobs:
         include:
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact: c-explainer-x86_64-windows.exe
+            artifact: c2e-x86_64-windows.exe
 
           - os: windows-latest
             target: i686-pc-windows-msvc
-            artifact: c-explainer-i686-windows.exe
+            artifact: c2e-i686-windows.exe
 
           - os: windows-latest
             target: aarch64-pc-windows-msvc
-            artifact: c-explainer-aarch64-windows.exe
+            artifact: c2e-aarch64-windows.exe
 
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact: c-explainer-x86_64-macos
+            artifact: c2e-x86_64-macos
 
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact: c-explainer-aarch64-macos
+            artifact: c2e-aarch64-macos
 
           - os: ubuntu-latest
             target: x86_64-unknown-linux-gnu
-            artifact: c-explainer-x86_64-linux-gnu
+            artifact: c2e-x86_64-linux-gnu
 
           - os: ubuntu-latest
             target: aarch64-unknown-linux-gnu
-            artifact: c-explainer-aarch64-linux-gnu
+            artifact: c2e-aarch64-linux-gnu
             use-cross: true
 
           - os: ubuntu-latest
             target: armv7-unknown-linux-gnueabihf
-            artifact: c-explainer-armv7hf-linux-gnu
+            artifact: c2e-armv7hf-linux-gnu
             use-cross: true
 
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            artifact: c-explainer-x86_64-linux-musl
+            artifact: c2e-x86_64-linux-musl
 
     steps:
       - name: Install musl-gcc
@@ -112,7 +112,7 @@ jobs:
         id: rename
         env:
           SRC: ${{ format(
-              'target/{0}/release/c-explainer-cli{1}',
+              'target/{0}/release/c2e{1}',
               matrix.target,
               contains(matrix.os, 'windows') && '.exe' || ''
             ) }}

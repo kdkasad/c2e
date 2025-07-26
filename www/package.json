@@ -1,5 +1,5 @@
 {
-    "name": "c-explainer-www",
+    "name": "c2e-www",
     "private": true,
     "version": "0.0.1-pre1",
     "type": "module",
@@ -7,7 +7,7 @@
         "dev": "vite",
         "build": "tsc && vite build",
         "preview": "vite preview",
-        "build-rust": "cd ../c-explainer-wasm && wasm-pack build -t web"
+        "build-rust": "cd ../wasm && wasm-pack build -t web"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.1.11",
@@ -16,7 +16,7 @@
         "vite": "^7.0.4"
     },
     "dependencies": {
-        "c-explainer-wasm": "../c-explainer-wasm/pkg",
+        "c2e": "../wasm/pkg",
         "tailwindcss": "^4.1.11"
     }
 }

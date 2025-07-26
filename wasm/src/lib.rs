@@ -11,9 +11,9 @@
  * not, see <https://www.gnu.org/licenses/>.
  */
 
-//! JS bindings for [`c_explainer`].
+//! JS bindings for [`c2e`].
 
-use c_explainer::{chumsky::Parser, explainer::explain_declaration};
+use c2e::{chumsky::Parser, explainer::explain_declaration};
 use wasm_bindgen::prelude::*;
 
 #[cfg(feature = "wee_alloc")]
@@ -23,7 +23,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 /// Explain the given C source code declaration.
 #[wasm_bindgen]
 pub fn explain(src: &str) -> Result<String, Vec<String>> {
-    c_explainer::parser::parser()
+    c2e::parser::parser()
         .parse(src)
         .into_result()
         .map(|decl| explain_declaration(&decl))

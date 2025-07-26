@@ -236,7 +236,7 @@ jobs:
           key: bun-${{ hashFiles('www/bun.lockb') }}
 
       - name: Build WASM library
-        run: cd c-explainer-wasm && wasm-pack build -t web --release
+        run: cd www && bun run build-rust
 
       - name: Install JS dependencies
         run: cd www && bun install --frozen-lockfile

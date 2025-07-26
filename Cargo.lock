@@ -30,7 +30,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "46c5e41b57b8bba42a04676d81cb89e9ee8e859a1a66f80a5a72e1cb76b34d43"
 
 [[package]]
-name = "c-explainer"
+name = "c2e"
 version = "0.0.1-pre1"
 dependencies = [
  "chumsky",
@@ -41,10 +41,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "c-explainer-cli"
+name = "c2e-cli"
 version = "0.0.1-pre1"
 dependencies = [
- "c-explainer",
+ "c2e",
  "chumsky",
  "indoc",
  "pretty_assertions",
@@ -53,10 +53,10 @@ dependencies = [
 ]
 
 [[package]]
-name = "c-explainer-wasm"
+name = "c2e-wasm"
 version = "0.0.1-pre1"
 dependencies = [
- "c-explainer",
+ "c2e",
  "wasm-bindgen",
  "wasm-bindgen-test",
  "wee_alloc",

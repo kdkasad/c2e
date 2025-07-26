@@ -16,7 +16,7 @@ use std::{
     process::ExitCode,
 };
 
-use c_explainer::{explainer::explain_declaration, parser::parser};
+use c2e::{explainer::explain_declaration, parser::parser};
 use chumsky::Parser;
 use rustyline::{Config, DefaultEditor, error::ReadlineError};
 

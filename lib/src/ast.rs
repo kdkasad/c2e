@@ -99,13 +99,13 @@ impl DerefMut for TypeQualifiers {
 /// # Examples
 ///
 /// ```
-/// # use c_explainer::ast::TypeQualifiers;
+/// # use c2e::ast::TypeQualifiers;
 /// let empty = TypeQualifiers::default();
 /// assert_eq!(&empty.to_string(), "");
 /// ```
 ///
 /// ```
-/// # use c_explainer::ast::{TypeQualifiers, TypeQualifier};
+/// # use c2e::ast::{TypeQualifiers, TypeQualifier};
 /// let mut qualifiers = TypeQualifiers([
 ///     TypeQualifier::Const,
 ///     TypeQualifier::Volatile

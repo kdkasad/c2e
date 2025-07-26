@@ -12,7 +12,7 @@
 #
 
 [package]
-name = "c-explainer"
+name = "c2e"
 version.workspace = true
 authors.workspace = true
 description.workspace = true

@@ -11,7 +11,7 @@
 # not, see <https://www.gnu.org/licenses/>.
 #
 
-name: Publish C-Explainer release
+name: Publish release
 
 on:
   release:

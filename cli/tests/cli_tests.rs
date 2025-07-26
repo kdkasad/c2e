@@ -22,7 +22,7 @@ use rexpect::session::{PtySession, spawn_command};
 use pretty_assertions::assert_eq;
 
 fn spawn() -> PtySession {
-    let path = env!("CARGO_BIN_EXE_c-explainer-cli");
+    let path = env!("CARGO_BIN_EXE_c2e");
     spawn_command(
         Command::new(path),
         Some(Duration::from_secs(10).as_millis() as u64),
@@ -80,7 +80,7 @@ fn test_parse_error() {
 
 #[test]
 fn test_read_error() {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_c-explainer-cli"))
+    let mut c = Command::new(env!("CARGO_BIN_EXE_c2e"))
         .stdin(Stdio::piped())
         .stderr(Stdio::piped())
         .spawn()
@@ -113,7 +113,7 @@ fn test_interactive_license_header() {
 
 #[test]
 fn test_non_interactive_no_license() {
-    let mut c = Command::new(env!("CARGO_BIN_EXE_c-explainer-cli"))
+    let mut c = Command::new(env!("CARGO_BIN_EXE_c2e"))
         .stdin(Stdio::piped())
         .stderr(Stdio::piped())
         .stdout(Stdio::piped())

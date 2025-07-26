@@ -1,5 +1,5 @@
 [package]
-name = "c-explainer-cli"
+name = "c2e-cli"
 version.workspace = true
 authors.workspace = true
 description.workspace = true
@@ -8,8 +8,12 @@ license.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 
+[[bin]]
+name = "c2e"
+path = "src/main.rs"
+
 [dependencies]
-c-explainer.workspace = true
+c2e.workspace = true
 chumsky.workspace = true
 indoc = "2.0.6"
 rustyline = { version = "16.0.0", default-features = false }

@@ -1,5 +1,5 @@
 import "./style.css";
-import initExplainer, { explain } from "c-explainer-wasm";
+import initExplainer, { explain } from "c2e";
 
 const input = document.getElementById("input")! as HTMLTextAreaElement;
 const output = document.getElementById("output")!;

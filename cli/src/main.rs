@@ -16,7 +16,7 @@ use std::{
     process::ExitCode,
 };
 
-use c2e::{explainer::explain_declaration, parser::parser};
+use c2e::{color::fmt::PlainFormatter, explainer::explain_declaration, parser::parser};
 use chumsky::Parser;
 use rustyline::{Config, DefaultEditor, error::ReadlineError};
 
@@ -83,12 +83,14 @@ fn main() -> ExitCode {
                 match parser().parse(&line).into_result() {
                     Ok(decls) => match &decls[..] {
                         [decl] => {
-                            let explanation = explain_declaration(decl);
+                            let explanation =
+                                explain_declaration(decl).format_to_string(&PlainFormatter::new());
                             println!("{explanation}");
                         }
                         decls => {
                             for decl in decls {
-                                let explanation = explain_declaration(decl);
+                                let explanation = explain_declaration(decl)
+                                    .format_to_string(&PlainFormatter::new());
                                 println!("{explanation};");
                             }
                         }

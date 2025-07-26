@@ -15,7 +15,9 @@
 
 use std::fmt::Write;
 
-use c2e::{ast::Declaration, chumsky::Parser, explainer::explain_declaration};
+use c2e::{
+    ast::Declaration, chumsky::Parser, color::fmt::PlainFormatter, explainer::explain_declaration,
+};
 use wasm_bindgen::prelude::*;
 
 /// Explain the given C source code declaration.
@@ -31,16 +33,20 @@ pub fn explain(src: &str) -> Result<String, Vec<String>> {
 fn explain_declarations(decls: &[Declaration<'_>]) -> String {
     match decls {
         [] => String::new(),
-        [decl] => explain_declaration(decl),
+        [decl] => explain_to_string(decl),
         [decls @ .., last] => {
             let mut s = String::new();
             for decl in decls {
-                write!(&mut s, "{};\n\n", explain_declaration(decl)).unwrap();
+                write!(&mut s, "{};\n\n", explain_to_string(decl)).unwrap();
             }
-            write!(&mut s, "{};", explain_declaration(last)).unwrap();
+            write!(&mut s, "{};", explain_to_string(last)).unwrap();
             s
         }
     }
+}
+
+fn explain_to_string(declaration: &Declaration<'_>) -> String {
+    explain_declaration(declaration).format_to_string(&PlainFormatter::new())
 }
 
 #[cfg(test)]

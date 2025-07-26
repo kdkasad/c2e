@@ -32,6 +32,9 @@ function rejectAfter(ms: number): Promise<void> {
 function processInput() {
     url.searchParams.set("code", input.value);
     window.history.replaceState(null, "", url.toString());
+    if (input.value.trim() === "") {
+        return;
+    }
     try {
         showOutput(explain(input.value));
     } catch (err) {

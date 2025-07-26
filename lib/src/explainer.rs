@@ -191,8 +191,9 @@ mod tests {
 
     /// Parse the first argument and assert that its explanation matches the second argument.
     fn run(expression: &str, expected: &str) {
-        let decl = crate::parser::parser().parse(expression).unwrap();
-        let result = explain_declaration(&decl);
+        let decls = crate::parser::parser().parse(expression).unwrap();
+        assert_eq!(decls.len(), 1, "Expected exactly one declaration");
+        let result = explain_declaration(&decls[0]);
         assert_eq!(result, expected);
     }
 

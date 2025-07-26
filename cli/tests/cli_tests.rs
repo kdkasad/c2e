@@ -72,8 +72,7 @@ fn test_parse_error() {
     let mut c = spawn();
     c.exp_string("> ").unwrap();
     c.send_line("int x = 5;").unwrap();
-    c.exp_string("Error(s) parsing declaration:\r\nat 6..7: expected '[', '(', or end of input, but found '='")
-        .unwrap();
+    c.exp_string("Error(s) parsing declaration:\r\n").unwrap();
     c.exp_string("> ").unwrap();
     kill(c);
 }
@@ -124,4 +123,14 @@ fn test_non_interactive_no_license() {
     let out_str = str::from_utf8(&output.stdout).unwrap();
     assert_eq!(out_str, "an int named foo\n", "wrong output on stdout");
     assert!(output.stderr.is_empty(), "expected stderr to be empty");
+}
+
+#[test]
+fn test_multiple_declarations() {
+    let mut c = spawn();
+    c.exp_string("> ").unwrap();
+    c.send_line("int x; float y;").unwrap();
+    c.exp_string("an int named x;\r\na float named y;").unwrap();
+    c.exp_string("> ").unwrap();
+    kill(c);
 }

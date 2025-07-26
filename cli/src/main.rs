@@ -81,10 +81,18 @@ fn main() -> ExitCode {
                 }
 
                 match parser().parse(&line).into_result() {
-                    Ok(decl) => {
-                        let explanation = explain_declaration(&decl);
-                        println!("{explanation}");
-                    }
+                    Ok(decls) => match &decls[..] {
+                        [decl] => {
+                            let explanation = explain_declaration(decl);
+                            println!("{explanation}");
+                        }
+                        decls => {
+                            for decl in decls {
+                                let explanation = explain_declaration(decl);
+                                println!("{explanation};");
+                            }
+                        }
+                    },
                     Err(errs) => {
                         eprintln!("Error(s) parsing declaration:");
                         for err in errs {

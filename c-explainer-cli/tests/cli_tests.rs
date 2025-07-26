@@ -19,6 +19,8 @@ use std::{
 
 use rexpect::session::{PtySession, spawn_command};
 
+use pretty_assertions::assert_eq;
+
 fn spawn() -> PtySession {
     let path = env!("CARGO_BIN_EXE_c-explainer-cli");
     spawn_command(
@@ -99,4 +101,27 @@ fn test_print_license() {
     kill(c);
     assert!(output.contains("GNU General Public License"));
     assert!(output.contains(env!("CARGO_PKG_REPOSITORY")));
+}
+
+#[test]
+fn test_interactive_license_header() {
+    let mut c = spawn();
+    let header = c.exp_string("> ").unwrap();
+    kill(c);
+    assert!(header.contains("This program comes with ABSOLUTELY NO WARRANTY."));
+}
+
+#[test]
+fn test_non_interactive_no_license() {
+    let mut c = Command::new(env!("CARGO_BIN_EXE_c-explainer-cli"))
+        .stdin(Stdio::piped())
+        .stderr(Stdio::piped())
+        .stdout(Stdio::piped())
+        .spawn()
+        .unwrap();
+    c.stdin.as_mut().unwrap().write_all(b"int foo\n").unwrap();
+    let output = c.wait_with_output().unwrap();
+    let out_str = str::from_utf8(&output.stdout).unwrap();
+    assert_eq!(out_str, "an int named foo\n", "wrong output on stdout");
+    assert!(output.stderr.is_empty(), "expected stderr to be empty");
 }

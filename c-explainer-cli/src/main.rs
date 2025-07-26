@@ -39,14 +39,16 @@ fn main() -> ExitCode {
     let rl_config = Config::builder().auto_add_history(true).build();
     let mut rl = DefaultEditor::with_config(rl_config).unwrap();
 
-    // Print license information
-    eprintln!(indoc::concatdoc! {
-        copyright_header!(), r"
-        This program comes with ABSOLUTELY NO WARRANTY.
-        This is free software, and you are welcome to redistribute it
-        under certain conditions; type `@license' for details.
-        "
-    });
+    // Print license information if interactive
+    if stdin().is_terminal() {
+        eprintln!(indoc::concatdoc! {
+            copyright_header!(), r"
+            This program comes with ABSOLUTELY NO WARRANTY.
+            This is free software, and you are welcome to redistribute it
+            under certain conditions; type `@license' for details.
+            "
+        });
+    }
 
     loop {
         match rl.readline("> ") {

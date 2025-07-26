@@ -25,3 +25,27 @@ pub fn explain(src: &str) -> Result<String, Vec<String>> {
         .map(|decl| explain_declaration(&decl))
         .map_err(|errs| errs.into_iter().map(|err| err.to_string()).collect())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn explain_success() {
+        let output = explain("int main()").unwrap();
+        assert_eq!(
+            output,
+            "a function named main that takes no parameters and returns an int"
+        );
+    }
+
+    #[test]
+    fn explain_error() {
+        let output = explain("int main(");
+        let errors = output.unwrap_err();
+        assert_eq!(errors.len(), 1);
+        assert!(errors[0].contains("expected"));
+    }
+}

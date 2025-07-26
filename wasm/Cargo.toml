@@ -16,4 +16,4 @@ wasm-bindgen = "0.2.84"
 c2e.workspace = true
 
 [dev-dependencies]
-wasm-bindgen-test = "0.3.34"
+pretty_assertions.workspace = true

@@ -9,7 +9,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-c-explainer = { path = "../c-explainer", version = "*" }
+c-explainer.workspace = true
 chumsky.workspace = true
 indoc = "2.0.6"
 rustyline = { version = "16.0.0", default-features = false }

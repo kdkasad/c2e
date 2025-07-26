@@ -20,7 +20,7 @@ members = [
 resolver = "3"
 
 [workspace.package]
-version = "0.0.1"
+version = "0.0.1-pre1"
 authors = ["Kian Kasad <kian@kasad.com>"]
 description = "C declaration/type explainer"
 license = "GPL-3.0-or-later"
@@ -28,14 +28,10 @@ repository = "https://github.com/kdkasad/c-explainer"
 edition = "2024"
 rust-version = "1.88"
 
-[workspace.dependencies.chumsky]
-version = "0.10.1"
-default-features = false
-
-[workspace.dependencies.pretty_assertions]
-version = "1.4.1"
-features = ["alloc"]
-default-features = false
+[workspace.dependencies]
+chumsky = { version = "0.10.1", default-features = false }
+pretty_assertions = { version = "1.4.1", features = ["alloc"], default-features = false }
+c-explainer = { path = "c-explainer" }
 
 [profile.wasm]
 inherits = "release"

@@ -13,11 +13,15 @@
 
 //! Convert ASTs to a human-readable explanations
 
-use core::fmt::Write;
+use alloc::{
+    string::{String, ToString},
+    vec,
+};
 
-use alloc::string::{String, ToString};
-
-use crate::ast::{Declaration, Declarator, QualifiedType, Type};
+use crate::{
+    ast::{Declaration, Declarator, QualifiedType, Type},
+    color::{Highlight, HighlightedText, HighlightedTextSegment},
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Plurality {
@@ -25,26 +29,26 @@ pub enum Plurality {
     Plural,
 }
 
-/// Returns a new string with the noun articulated as "a" or "an" depending on its first letter.
-fn articulate(dst: &mut String, noun: &str) {
-    match noun.chars().next() {
-        Some('a' | 'e' | 'i' | 'o' | 'u') => write!(dst, "an {noun}").unwrap(),
-        Some(_) => write!(dst, "a {noun}").unwrap(),
-        None => (),
+/// Returns the appropriate article ("a" or "an") for the given noun, followed by a space.
+fn article_for(noun: &HighlightedTextSegment) -> &'static str {
+    match noun.text.chars().next() {
+        Some('a' | 'e' | 'i' | 'o' | 'u') => "an ",
+        Some(_) => "a ",
+        None => "",
     }
 }
 
-/// Naively returns the plural form of a noun.
-fn make_plural(dst: &mut String, noun: &str) {
-    match noun.chars().last() {
-        Some('s' | 'x' | 'z') => write!(dst, "{noun}es").unwrap(),
-        Some(_) => write!(dst, "{noun}s").unwrap(),
-        None => (),
+/// Naively returns the plural suffix for a noun.
+fn plural_suffix_for(noun: &HighlightedTextSegment) -> &'static str {
+    match noun.text.chars().last() {
+        Some('s' | 'x' | 'z') => "es",
+        Some(_) => "s",
+        None => "",
     }
 }
 
 #[must_use]
-pub fn explain_declaration(decl: &Declaration) -> String {
+pub fn explain_declaration(decl: &Declaration) -> HighlightedText {
     explain_declaration_impl(decl).msg
 }
 
@@ -53,7 +57,7 @@ struct Explanation {
     /// Name of the root identifier being explained
     identifier_name: Option<String>,
     /// String containing English explanation
-    msg: String,
+    msg: HighlightedText,
     plurality: Plurality,
 }
 
@@ -61,7 +65,7 @@ impl Explanation {
     fn new() -> Self {
         Self {
             identifier_name: None,
-            msg: String::new(),
+            msg: HighlightedText::new(),
             plurality: Plurality::Singular,
         }
     }
@@ -91,26 +95,51 @@ impl Explanation {
     }
 }
 
+fn format_qualified_type(qt: &QualifiedType) -> HighlightedText {
+    let highlight = match qt.1 {
+        Type::Primitive(_) => Highlight::PrimitiveType,
+        Type::Record(_, _) => Highlight::UserDefinedType,
+    };
+    let highlighted_unqualified_type = HighlightedTextSegment::new(qt.1.to_string(), highlight);
+
+    if qt.0.is_empty() {
+        vec![highlighted_unqualified_type]
+    } else {
+        let qualifiers = qt.0.to_string();
+        vec![
+            HighlightedTextSegment::new(qualifiers, Highlight::Qualifier),
+            HighlightedTextSegment::new(" ", Highlight::None),
+            highlighted_unqualified_type,
+        ]
+    }
+    .into()
+}
+
 fn explain_declaration_impl(decl: &Declaration) -> Explanation {
     let mut explanation = explain_declarator(&decl.declarator);
-    match (decl.base_type, explanation.plurality) {
-        (QualifiedType(_, Type::Primitive(_)), Plurality::Singular) => {
-            articulate(&mut explanation.msg, &decl.base_type.to_string());
+    let highlighted_type = format_qualified_type(&decl.base_type);
+    match explanation.plurality {
+        Plurality::Singular => {
+            let article = article_for(&highlighted_type[0]);
+            explanation.msg.push_str(article);
+            explanation.msg.extend(highlighted_type.0);
         }
-        (QualifiedType(_, Type::Primitive(_)), Plurality::Plural) => {
-            make_plural(&mut explanation.msg, &decl.base_type.to_string());
+        Plurality::Plural => {
+            let suffix = plural_suffix_for(highlighted_type.last().unwrap());
+            explanation.msg.extend(highlighted_type.0);
+            explanation.msg.push_str(suffix);
         }
-        (qt, Plurality::Singular) => articulate(&mut explanation.msg, &qt.to_string()),
-        (qt, _) => write!(&mut explanation.msg, "{qt}").unwrap(),
     }
-    if let Plurality::Singular = explanation.plurality
-        && let Some(name) = &explanation.identifier_name
-    {
-        write!(&mut explanation.msg, " named {name}").unwrap();
+    if let Some(name) = &explanation.identifier_name {
+        explanation.msg.push_str(" named ");
+        explanation
+            .msg
+            .push(HighlightedTextSegment::new(name, Highlight::Ident));
     }
     explanation
 }
 
+#[allow(clippy::too_many_lines)]
 #[must_use]
 fn explain_declarator(declarator: &Declarator) -> Explanation {
     match declarator {
@@ -118,13 +147,36 @@ fn explain_declarator(declarator: &Declarator) -> Explanation {
         Declarator::Ident(name) => Explanation::new().with_identifier_name((*name).to_string()),
         Declarator::Ptr(inner, qualifiers) => {
             let mut sub = explain_declarator(inner);
+            let qualifiers_text = if qualifiers.is_empty() {
+                None
+            } else {
+                Some(HighlightedTextSegment::new(
+                    qualifiers.to_string(),
+                    Highlight::Qualifier,
+                ))
+            };
             match sub.plurality {
-                Plurality::Singular => write!(&mut sub.msg, "a {qualifiers}pointer "),
-                Plurality::Plural => write!(&mut sub.msg, "{qualifiers}pointers "),
+                Plurality::Singular => {
+                    sub.msg.push_str("a ");
+                    if let Some(qualifiers_text) = qualifiers_text {
+                        sub.msg.push(qualifiers_text);
+                        sub.msg.push_str(" ");
+                    }
+                    sub.msg.push_str("pointer ");
+                }
+                Plurality::Plural => {
+                    if let Some(qualifiers_text) = qualifiers_text {
+                        sub.msg.push(qualifiers_text);
+                        sub.msg.push_str(" ");
+                    }
+                    sub.msg.push_str("pointers ");
+                }
             }
-            .unwrap();
             if let Some(name) = &sub.identifier_name {
-                write!(&mut sub.msg, "named {name} ").unwrap();
+                sub.msg.push_str("named ");
+                sub.msg
+                    .push(HighlightedTextSegment::new(name, Highlight::Ident));
+                sub.msg.push_str(" ");
             }
             sub.msg.push_str("to ");
             sub.unnamed()
@@ -132,45 +184,60 @@ fn explain_declarator(declarator: &Declarator) -> Explanation {
         Declarator::Array(inner, len) => {
             let mut sub = explain_declarator(inner);
             sub.msg.push_str(match sub.plurality {
-                Plurality::Singular => "an array ",
-                Plurality::Plural => "arrays ",
+                Plurality::Singular => "an array",
+                Plurality::Plural => "arrays",
             });
             if let Some(name) = &sub.identifier_name {
-                write!(&mut sub.msg, "named {name} ").unwrap();
+                sub.msg.push_str(" named ");
+                sub.msg
+                    .push(HighlightedTextSegment::new(name, Highlight::Ident));
             }
-            sub.msg.push_str("of ");
+            sub.msg.push_str(" of ");
             if let Some(len) = len {
-                write!(&mut sub.msg, "{len} ").unwrap();
+                sub.msg.push(HighlightedTextSegment::new(
+                    len.to_string(),
+                    Highlight::Number,
+                ));
+                sub.msg.push_str(" ");
             }
             sub.unnamed().plural()
         }
         Declarator::Function { func, params } => {
             let mut sub = explain_declarator(func);
             match (&sub.identifier_name, sub.plurality) {
-                (None, Plurality::Singular) => write!(&mut sub.msg, "a function that takes "),
-                (None, Plurality::Plural) => write!(&mut sub.msg, "functions that take "),
+                (None, Plurality::Singular) => sub.msg.push_str("a function that takes "),
+                (None, Plurality::Plural) => sub.msg.push_str("functions that take "),
                 (Some(name), Plurality::Singular) => {
-                    write!(&mut sub.msg, "a function named {name} that takes ")
+                    sub.msg.push_str("a function named ");
+                    sub.msg
+                        .push(HighlightedTextSegment::new(name, Highlight::Ident));
+                    sub.msg.push_str(" that takes ");
                 }
                 (Some(_), Plurality::Plural) => unreachable!("an identifier cannot be plural"),
             }
-            .unwrap();
             match &params[..] {
                 [] => sub.msg.push_str("no parameters"),
-                [param] => write!(&mut sub.msg, "({})", explain_declaration(param)).unwrap(),
-                [a, b] => write!(
-                    &mut sub.msg,
-                    "({} and {})",
-                    explain_declaration(a),
-                    explain_declaration(b)
-                )
-                .unwrap(),
+                [param] => {
+                    sub.msg.push_str("(");
+                    sub.msg.extend(explain_declaration(param).0);
+                    sub.msg.push_str(")");
+                }
+                [a, b] => {
+                    sub.msg.push_str("(");
+                    sub.msg.extend(explain_declaration(a).0);
+                    sub.msg.push_str(" and ");
+                    sub.msg.extend(explain_declaration(b).0);
+                    sub.msg.push_str(")");
+                }
                 [rest @ .., last] => {
-                    sub.msg.push('(');
+                    sub.msg.push_str("(");
                     for param in rest {
-                        write!(&mut sub.msg, "{}, ", explain_declaration(param)).unwrap();
+                        sub.msg.extend(explain_declaration(param).0);
+                        sub.msg.push_str(", ");
                     }
-                    write!(&mut sub.msg, "and {})", explain_declaration(last)).unwrap();
+                    sub.msg.push_str("and ");
+                    sub.msg.extend(explain_declaration(last).0);
+                    sub.msg.push_str(")");
                 }
             }
             sub.msg.push_str(match sub.plurality {
@@ -190,70 +257,132 @@ mod tests {
     use super::*;
 
     /// Parse the first argument and assert that its explanation matches the second argument.
-    fn run(expression: &str, expected: &str) {
-        let decl = crate::parser::parser().parse(expression).unwrap();
-        let result = explain_declaration(&decl);
-        assert_eq!(result, expected);
+    fn run(expression: &str, expected: &[HighlightedTextSegment]) {
+        let decls = crate::parser::parser().parse(expression).unwrap();
+        assert_eq!(
+            decls.len(),
+            1,
+            "Expected exactly one declaration for input {expression}"
+        );
+        let result = explain_declaration(&decls[0]);
+        assert_eq!(
+            &result.coalesced().0,
+            expected,
+            "Wrong output for input {expression}"
+        );
     }
 
     #[test]
     fn explain_primitive_var() {
-        run("int x", "an int named x");
+        // run("int x", "an int named x");
+        run(
+            "int x",
+            &[
+                HighlightedTextSegment::new("an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("x", Highlight::Ident),
+            ],
+        );
     }
 
     /// Ensures "a" and "an" are used appropriately.
     #[test]
     fn test_articles() {
-        run("int x", "an int named x");
-        run("signed int x", "a signed int named x");
+        run(
+            "int x",
+            &[
+                HighlightedTextSegment::new("an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("x", Highlight::Ident),
+            ],
+        );
+        run(
+            "signed int x",
+            &[
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("signed int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("x", Highlight::Ident),
+            ],
+        );
     }
 
     #[test]
-    fn test_articulate() {
-        let mut s = String::new();
-        articulate(&mut s, "int");
-        assert_eq!(s, "an int");
-        s.clear();
-        articulate(&mut s, "cow");
-        assert_eq!(s, "a cow");
-        s.clear();
-        articulate(&mut s, "");
-        assert_eq!(s, "");
+    fn test_article_for() {
+        assert_eq!(article_for(&"int".into()), "an ");
+        assert_eq!(article_for(&"cow".into()), "a ");
+        assert_eq!(article_for(&"".into()), "");
     }
 
     #[test]
     fn test_make_plural() {
-        let test = |word, expected| {
-            let mut s = String::new();
-            make_plural(&mut s, word);
-            assert_eq!(s, expected);
-        };
-        test("cat", "cats");
-        test("box", "boxes");
-        test("int", "ints");
-        test("", "");
+        assert_eq!(plural_suffix_for(&"cat".into()), "s");
+        assert_eq!(plural_suffix_for(&"box".into()), "es");
+        assert_eq!(plural_suffix_for(&"int".into()), "s");
+        assert_eq!(plural_suffix_for(&"".into()), "");
     }
 
     #[test]
     fn explain_ptr_to_primitive() {
-        run("int *p", "a pointer named p to an int");
+        run(
+            "int *p",
+            &[
+                HighlightedTextSegment::new("a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("p", Highlight::Ident),
+                HighlightedTextSegment::new(" to an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+            ],
+        );
     }
 
     #[test]
     fn explain_array_of_primitive() {
-        run("int arr[]", "an array named arr of ints");
+        run(
+            "int arr[]",
+            &[
+                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("arr", Highlight::Ident),
+                HighlightedTextSegment::new(" of ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new("s", Highlight::None),
+            ],
+        );
     }
 
     #[test]
     fn explain_array_of_primitive_with_size() {
-        run("int arr[10]", "an array named arr of 10 ints");
+        // run("int arr[10]", "an array named arr of 10 ints");
+        run(
+            "int arr[10]",
+            &[
+                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("arr", Highlight::Ident),
+                HighlightedTextSegment::new(" of ", Highlight::None),
+                HighlightedTextSegment::new("10", Highlight::Number),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new("s", Highlight::None),
+            ],
+        );
     }
 
     #[test]
     fn explain_2d_array_of_primitive() {
         run(
             "int arr[10][20]",
-            "an array named arr of 10 arrays of 20 ints",
+            &[
+                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("arr", Highlight::Ident),
+                HighlightedTextSegment::new(" of ", Highlight::None),
+                HighlightedTextSegment::new("10", Highlight::Number),
+                HighlightedTextSegment::new(" arrays of ", Highlight::None),
+                HighlightedTextSegment::new("20", Highlight::Number),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new("s", Highlight::None),
+            ],
         );
     }
 
@@ -261,25 +390,64 @@ mod tests {
     fn explain_nested_ptrs() {
         run(
             "char ***p",
-            "a pointer named p to a pointer to a pointer to a char",
+            &[
+                HighlightedTextSegment::new("a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("p", Highlight::Ident),
+                HighlightedTextSegment::new(" to a pointer to a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+            ],
         );
     }
 
     #[test]
     fn explain_array_of_ptrs() {
-        run("int *arr[10]", "an array named arr of 10 pointers to ints");
+        run(
+            "int *arr[10]",
+            &[
+                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("arr", Highlight::Ident),
+                HighlightedTextSegment::new(" of ", Highlight::None),
+                HighlightedTextSegment::new("10", Highlight::Number),
+                HighlightedTextSegment::new(" pointers to ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new("s", Highlight::None),
+            ],
+        );
     }
 
     #[test]
     fn explain_ptr_to_array() {
-        run("int (*p)[10]", "a pointer named p to an array of 10 ints");
+        run(
+            "int (*p)[10]",
+            &[
+                HighlightedTextSegment::new("a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("p", Highlight::Ident),
+                HighlightedTextSegment::new(" to an array of ", Highlight::None),
+                HighlightedTextSegment::new("10", Highlight::Number),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new("s", Highlight::None),
+            ],
+        );
     }
 
     #[test]
     fn explain_function_with_no_params() {
+        // run(
+        //     "void func()",
+        //     "a function named func that takes no parameters and returns a void",
+        // );
         run(
             "void func()",
-            "a function named func that takes no parameters and returns a void",
+            &[
+                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("func", Highlight::Ident),
+                HighlightedTextSegment::new(
+                    " that takes no parameters and returns a ",
+                    Highlight::None,
+                ),
+                HighlightedTextSegment::new("void", Highlight::PrimitiveType),
+            ],
         );
     }
 
@@ -287,34 +455,99 @@ mod tests {
     fn explain_array_of_functions() {
         run(
             "char *(*(*bar)[5])(int)",
-            "a pointer named bar to an array of 5 pointers to functions that take (an int) and return a pointer to a char",
+            &[
+                HighlightedTextSegment::new("a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("bar", Highlight::Ident),
+                HighlightedTextSegment::new(" to an array of ", Highlight::None),
+                HighlightedTextSegment::new("5", Highlight::Number),
+                HighlightedTextSegment::new(
+                    " pointers to functions that take (an ",
+                    Highlight::None,
+                ),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(") and return a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+            ],
         );
     }
 
     #[test]
     fn explain_qualifiers() {
-        run("const int x", "a const int named x");
-        run("volatile int x", "a volatile int named x");
+        run(
+            "const int x",
+            &[
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("x", Highlight::Ident),
+            ],
+        );
+        run(
+            "volatile int x",
+            &[
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("volatile", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("x", Highlight::Ident),
+            ],
+        );
         run(
             "int *const restrict x",
-            "a const restrict pointer named x to an int",
+            &[
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("const restrict", Highlight::Qualifier),
+                HighlightedTextSegment::new(" pointer named ", Highlight::None),
+                HighlightedTextSegment::new("x", Highlight::Ident),
+                HighlightedTextSegment::new(" to an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+            ],
         );
         run(
             "const char *const str",
-            "a const pointer named str to a const char",
+            &[
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" pointer named ", Highlight::None),
+                HighlightedTextSegment::new("str", Highlight::Ident),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+            ],
         );
     }
 
     #[test]
     fn explain_struct_var() {
-        run("struct point p", "a struct point named p");
+        run(
+            "struct point p",
+            &[
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("struct point", Highlight::UserDefinedType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("p", Highlight::Ident),
+            ],
+        );
     }
 
     #[test]
     fn explain_function_one_unnamed_param() {
         run(
             "int foo(const char *)",
-            "a function named foo that takes (a pointer to a const char) and returns an int",
+            &[
+                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("foo", Highlight::Ident),
+                HighlightedTextSegment::new(" that takes (a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(") and returns an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+            ],
         );
     }
 
@@ -322,7 +555,18 @@ mod tests {
     fn explain_function_one_named_param() {
         run(
             "int foo(const char *bar)",
-            "a function named foo that takes (a pointer named bar to a const char) and returns an int",
+            &[
+                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("foo", Highlight::Ident),
+                HighlightedTextSegment::new(" that takes (a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("bar", Highlight::Ident),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(") and returns an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+            ],
         );
     }
 
@@ -330,7 +574,17 @@ mod tests {
     fn explain_anonymous_function() {
         run(
             "int (*)(const char *)",
-            "a pointer to a function that takes (a pointer to a const char) and returns an int",
+            &[
+                HighlightedTextSegment::new(
+                    "a pointer to a function that takes (a pointer to a ",
+                    Highlight::None,
+                ),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(") and returns an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+            ],
         );
     }
 
@@ -338,7 +592,20 @@ mod tests {
     fn explain_function_two_params() {
         run(
             "int add(int a, int b)",
-            "a function named add that takes (an int named a and an int named b) and returns an int",
+            &[
+                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("add", Highlight::Ident),
+                HighlightedTextSegment::new(" that takes (an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("a", Highlight::Ident),
+                HighlightedTextSegment::new(" and an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("b", Highlight::Ident),
+                HighlightedTextSegment::new(") and returns an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+            ],
         );
     }
 
@@ -346,12 +613,54 @@ mod tests {
     fn explain_function_three_params() {
         run(
             "void print(int a, char *b, float c)",
-            "a function named print that takes (an int named a, a pointer named b to a char, and a float named c) and returns a void",
+            &[
+                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("print", Highlight::Ident),
+                HighlightedTextSegment::new(" that takes (an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("a", Highlight::Ident),
+                HighlightedTextSegment::new(", a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("b", Highlight::Ident),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(", and a ", Highlight::None),
+                HighlightedTextSegment::new("float", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" named ", Highlight::None),
+                HighlightedTextSegment::new("c", Highlight::Ident),
+                HighlightedTextSegment::new(") and returns a ", Highlight::None),
+                HighlightedTextSegment::new("void", Highlight::PrimitiveType),
+            ],
         );
     }
 
     #[test]
     fn explain_array_of_struct() {
-        run("struct point p[]", "an array named p of struct point");
+        run(
+            "struct point p[]",
+            &[
+                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("p", Highlight::Ident),
+                HighlightedTextSegment::new(" of ", Highlight::None),
+                HighlightedTextSegment::new("struct point", Highlight::UserDefinedType),
+                HighlightedTextSegment::new("s", Highlight::None),
+            ],
+        );
+    }
+
+    #[test]
+    fn explain_plural_qualifiers() {
+        run(
+            "char *const p[]",
+            &[
+                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("p", Highlight::Ident),
+                HighlightedTextSegment::new(" of ", Highlight::None),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" pointers to ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+                HighlightedTextSegment::new("s", Highlight::None),
+            ],
+        );
     }
 }

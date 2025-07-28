@@ -17,6 +17,7 @@
 extern crate alloc;
 
 pub mod ast;
+pub mod color;
 pub mod explainer;
 pub mod parser;
 

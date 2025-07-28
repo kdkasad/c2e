@@ -12,13 +12,17 @@
  */
 
 use std::{
-    io::{IsTerminal, stdin},
+    io::{IsTerminal, Write, stderr, stdin, stdout},
     process::ExitCode,
 };
 
 use c2e::{explainer::explain_declaration, parser::parser};
 use chumsky::Parser;
+use fmt::{CliFormatter, ColorMap};
 use rustyline::{Config, DefaultEditor, error::ReadlineError};
+use termcolor::{Color, ColorSpec, StandardStream, WriteColor};
+
+mod fmt;
 
 // Must be a macro so it expands to a string literal
 macro_rules! copyright_header {
@@ -35,6 +39,14 @@ macro_rules! copyright_header {
     };
 }
 
+const COLOR_MAP: ColorMap = ColorMap {
+    qualifier: Color::Cyan,
+    primitive_type: Color::Yellow,
+    user_defined_type: Color::Magenta,
+    identifier: Color::Green,
+    number: Color::Blue,
+};
+
 fn main() -> ExitCode {
     let rl_config = Config::builder().auto_add_history(true).build();
     let mut rl = DefaultEditor::with_config(rl_config).unwrap();
@@ -49,6 +61,19 @@ fn main() -> ExitCode {
             "
         });
     }
+
+    // Use color if the output is a terminal, otherwise disable it
+    let formatter = CliFormatter::new(COLOR_MAP);
+    let mut stdout = StandardStream::stdout(if stdout().is_terminal() {
+        termcolor::ColorChoice::Auto
+    } else {
+        termcolor::ColorChoice::Never
+    });
+    let mut stderr = StandardStream::stderr(if stderr().is_terminal() {
+        termcolor::ColorChoice::Auto
+    } else {
+        termcolor::ColorChoice::Never
+    });
 
     loop {
         match rl.readline("> ") {
@@ -81,15 +106,29 @@ fn main() -> ExitCode {
                 }
 
                 match parser().parse(&line).into_result() {
-                    Ok(decl) => {
-                        let explanation = explain_declaration(&decl);
-                        println!("{explanation}");
-                    }
+                    Ok(decls) => match &decls[..] {
+                        [decl] => {
+                            let explanation = explain_declaration(decl);
+                            formatter.format(&mut stdout, explanation).unwrap();
+                            writeln!(&mut stdout).unwrap();
+                        }
+                        decls => {
+                            for decl in decls {
+                                let explanation = explain_declaration(decl);
+                                formatter.format(&mut stdout, explanation).unwrap();
+                                writeln!(&mut stdout, ";").unwrap();
+                            }
+                        }
+                    },
                     Err(errs) => {
+                        stderr
+                            .set_color(ColorSpec::new().set_fg(Some(Color::Red)).set_bold(true))
+                            .unwrap();
                         eprintln!("Error(s) parsing declaration:");
                         for err in errs {
                             eprintln!("{err}");
                         }
+                        stderr.reset().unwrap();
                     }
                 }
             }

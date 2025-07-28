@@ -94,7 +94,7 @@ impl DerefMut for TypeQualifiers {
     }
 }
 
-/// Format the type qualifiers as a space-separated list, followed by a space if non-empty.
+/// Format the type qualifiers as a space-separated list.
 ///
 /// # Examples
 ///
@@ -110,12 +110,17 @@ impl DerefMut for TypeQualifiers {
 ///     TypeQualifier::Const,
 ///     TypeQualifier::Volatile
 /// ].into_iter().collect());
-/// assert_eq!(&qualifiers.to_string(), "const volatile ");
+/// assert_eq!(&qualifiers.to_string(), "const volatile");
 /// ```
 impl Display for TypeQualifiers {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        self.iter()
-            .try_for_each(|qualifier| write!(f, "{qualifier} "))
+        self.0.iter().enumerate().try_for_each(|(i, qualifier)| {
+            if i == 0 {
+                write!(f, "{qualifier}")
+            } else {
+                write!(f, " {qualifier}")
+            }
+        })
     }
 }
 
@@ -174,9 +179,9 @@ mod tests {
         assert_eq!(qualifiers.to_string(), "");
 
         qualifiers.insert(TypeQualifier::Const);
-        assert_eq!(qualifiers.to_string(), "const ");
+        assert_eq!(qualifiers.to_string(), "const");
 
         qualifiers.insert(TypeQualifier::Volatile);
-        assert_eq!(qualifiers.to_string(), "const volatile ");
+        assert_eq!(qualifiers.to_string(), "const volatile");
     }
 }

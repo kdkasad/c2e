@@ -16,7 +16,7 @@
         "vite": "^7.0.4"
     },
     "dependencies": {
-        "c2e": "../wasm/pkg",
+        "c2e-wasm": "../wasm/pkg",
         "tailwindcss": "^4.1.11"
     }
 }

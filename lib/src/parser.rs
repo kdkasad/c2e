@@ -102,7 +102,7 @@ enum SuffixInfo<'src> {
 
 /// Returns a parser which parses a C declaration.
 #[must_use]
-pub fn parser<'src>() -> impl Parser<'src, &'src str, Declaration<'src>, Err<'src>> {
+pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Declaration<'src>>, Err<'src>> {
     recursive(|declaration| {
         // Parses zero or more type qualifiers. Returns `TypeQualifiers`.
         let qualifiers = choice((
@@ -199,6 +199,9 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Declaration<'src>, Err<'sr
             .map(Declaration::from)
             .padded()
     })
+    .separated_by(just(';').padded().repeated().at_least(1))
+    .allow_trailing()
+    .collect()
 }
 
 #[cfg(test)]
@@ -290,15 +293,15 @@ mod tests {
             base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: ident("myvar123"),
         };
-        assert_eq!(expected, parser().parse("int myvar123").unwrap());
+        assert_eq!(vec![expected], parser().parse("int myvar123").unwrap());
     }
 
     #[test]
     fn test_basic_int_ptr_vars() {
-        let expected = Declaration {
+        let expected = vec![Declaration {
             base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: ptr(ident("p")),
-        };
+        }];
         let cases = ["int *p", "int*p", "int* p", "int *\np"];
         for case in cases {
             assert_eq!(expected, parser().parse(case).unwrap());
@@ -311,7 +314,7 @@ mod tests {
             base_type: Type::Primitive(PrimitiveType("char")).into(),
             declarator: ptr(ptr(ptr(ident("p")))),
         };
-        assert_eq!(expected, parser().parse("char ***p").unwrap());
+        assert_eq!(vec![expected], parser().parse("char ***p").unwrap());
     }
 
     #[test]
@@ -326,7 +329,7 @@ mod tests {
                 base_type: Type::Record(record_kind, "foo").into(),
                 declarator: ident("bar"),
             };
-            assert_eq!(expected, parser().parse(input).unwrap());
+            assert_eq!(vec![expected], parser().parse(input).unwrap());
         }
     }
 
@@ -374,7 +377,7 @@ mod tests {
                 declarator: ident("foo"),
             };
             let src = format!("{type} foo");
-            assert_eq!(expected, parser().parse(&src).unwrap());
+            assert_eq!(vec![expected], parser().parse(&src).unwrap());
         }
     }
 
@@ -384,7 +387,7 @@ mod tests {
             base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: array(ptr(ident("foo")), None),
         };
-        assert_eq!(expected, parser().parse("int (*foo)[]").unwrap());
+        assert_eq!(vec![expected], parser().parse("int (*foo)[]").unwrap());
     }
 
     #[test]
@@ -393,7 +396,7 @@ mod tests {
             base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: array(ptr(ident("foo")), Some(10)),
         };
-        assert_eq!(expected, parser().parse("int (*foo)[10]").unwrap());
+        assert_eq!(vec![expected], parser().parse("int (*foo)[10]").unwrap());
     }
 
     #[test]
@@ -402,7 +405,7 @@ mod tests {
             base_type: Type::Primitive(PrimitiveType("char")).into(),
             declarator: ptr(array(array(ident("foo"), 3), 2)),
         };
-        assert_eq!(expected, parser().parse("char *foo[3][2]").unwrap());
+        assert_eq!(vec![expected], parser().parse("char *foo[3][2]").unwrap());
     }
 
     #[test]
@@ -411,7 +414,7 @@ mod tests {
             base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: func(ident("foo"), []),
         };
-        assert_eq!(expected, parser().parse("int foo()").unwrap());
+        assert_eq!(vec![expected], parser().parse("int foo()").unwrap());
     }
 
     #[test]
@@ -420,7 +423,7 @@ mod tests {
             base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: func(ident("foo"), [primitive("int", anon())]),
         };
-        assert_eq!(expected, parser().parse("int foo(int)").unwrap());
+        assert_eq!(vec![expected], parser().parse("int foo(int)").unwrap());
     }
 
     #[test]
@@ -429,7 +432,7 @@ mod tests {
             base_type: Type::Primitive(PrimitiveType("int")).into(),
             declarator: func(ident("foo"), [primitive("int", ident("bar"))]),
         };
-        assert_eq!(expected, parser().parse("int foo(int bar)").unwrap());
+        assert_eq!(vec![expected], parser().parse("int foo(int bar)").unwrap());
     }
 
     #[test]
@@ -445,7 +448,7 @@ mod tests {
             )),
         );
         assert_eq!(
-            expected,
+            vec![expected],
             parser().parse("int *foo(int bar, char baz)").unwrap()
         );
     }
@@ -453,7 +456,7 @@ mod tests {
     #[test]
     fn parse_qualified_primitive() {
         assert_eq!(
-            qprimitive([TypeQualifier::Const], "int", ident("x")),
+            vec![qprimitive([TypeQualifier::Const], "int", ident("x"))],
             parser().parse("const int x").unwrap()
         );
     }
@@ -461,7 +464,11 @@ mod tests {
     #[test]
     fn parse_const_char_ptr() {
         assert_eq!(
-            qprimitive([TypeQualifier::Const], "char", ptr(ident("str"))),
+            vec![qprimitive(
+                [TypeQualifier::Const],
+                "char",
+                ptr(ident("str"))
+            )],
             parser().parse("const char *str").unwrap()
         );
     }
@@ -469,11 +476,11 @@ mod tests {
     #[test]
     fn parse_qualified_ptr() {
         assert_eq!(
-            qprimitive(
+            vec![qprimitive(
                 [TypeQualifier::Const],
                 "int",
                 qptr([TypeQualifier::Volatile], ident("x"))
-            ),
+            )],
             parser().parse("const int *volatile x").unwrap()
         );
     }
@@ -481,7 +488,12 @@ mod tests {
     #[test]
     fn parse_struct_var() {
         assert_eq!(
-            qrecord([TypeQualifier::Const], "struct", "foo", ident("bar")),
+            vec![qrecord(
+                [TypeQualifier::Const],
+                "struct",
+                "foo",
+                ident("bar")
+            )],
             parser().parse("const struct foo bar").unwrap()
         );
     }
@@ -489,13 +501,13 @@ mod tests {
     #[test]
     fn parse_complex_1() {
         assert_eq!(
-            primitive(
+            vec![primitive(
                 "void",
                 func(
                     ptr(ident("cb")),
                     vec![qrecord([], "struct", "foo", ptr(anon()))]
                 )
-            ),
+            )],
             parser().parse("void (*cb)(struct foo *)").unwrap()
         );
     }
@@ -526,7 +538,7 @@ mod tests {
             )),
         );
         assert_eq!(
-            expected,
+            vec![expected],
             parser()
                 .parse(
                     "const char *(*func)(void (*cb)(struct foo *), int, const char *restrict my_str)"
@@ -562,5 +574,26 @@ mod tests {
             errors[0].to_string(),
             "at 8..29: number too large to fit in target type"
         );
+    }
+
+    #[test]
+    fn parse_multiple_declarations() {
+        let expected = vec![
+            primitive("int", ident("a")),
+            qprimitive([TypeQualifier::Const], "char", ident("b")),
+            qrecord([], "struct", "foo", ident("c")),
+        ];
+
+        let src = "int a; const char b; struct foo c;";
+        assert_eq!(expected, parser().parse(src).unwrap());
+
+        // Same test with extra semicolons
+        let src = "int a; const char b;;; struct foo c;";
+        assert_eq!(expected, parser().parse(src).unwrap());
+    }
+
+    #[test]
+    fn parse_empty() {
+        assert_eq!(parser().parse("").unwrap(), vec![]);
     }
 }

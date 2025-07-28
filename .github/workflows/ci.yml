@@ -57,6 +57,8 @@ jobs:
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Lint code
         run: cargo clippy --all-targets --workspace --locked
@@ -75,6 +77,8 @@ jobs:
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Check formatting
         run: cargo fmt --check --all
@@ -125,6 +129,8 @@ jobs:
 
       - name: Cache toolchain and build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Install nextest (if not cached)
         run: cargo nextest --version || cargo install --locked cargo-nextest
@@ -188,6 +194,8 @@ jobs:
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Compile project
         run: cargo build --workspace --all-targets --all-features --release --locked
@@ -204,6 +212,8 @@ jobs:
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Compile project
         run: cargo doc --no-deps --document-private-items --workspace --all-features --locked
@@ -222,6 +232,8 @@ jobs:
 
       - name: Cache build artifacts
         uses: Swatinem/rust-cache@v2
+        with:
+          cache-on-failure: true
 
       - name: Install wasm-pack
         run: cargo install wasm-pack

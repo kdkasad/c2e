@@ -17,15 +17,25 @@ use std::{
     time::Duration,
 };
 
-use rexpect::session::{PtySession, spawn_command};
+use rexpect::{
+    session::{Options, PtySession},
+    spawn_with_options,
+};
 
 use pretty_assertions::assert_eq;
 
-fn spawn() -> PtySession {
+fn spawn(color: bool) -> PtySession {
     let path = env!("CARGO_BIN_EXE_c2e");
-    spawn_command(
-        Command::new(path),
-        Some(Duration::from_secs(10).as_millis() as u64),
+    let mut cmd = Command::new(path);
+    if color {
+        cmd.env_clear().env("TERM", "xterm-256color");
+    }
+    spawn_with_options(
+        cmd,
+        Options {
+            timeout_ms: Some(Duration::from_secs(10).as_millis() as u64),
+            strip_ansi_escape_codes: !color,
+        },
     )
     .unwrap()
 }
@@ -37,7 +47,7 @@ fn kill(mut c: PtySession) {
 
 #[test]
 fn test_send_eof() {
-    let mut c = spawn();
+    let mut c = spawn(false);
     c.exp_string("> ").unwrap();
     c.send_line("int").unwrap();
     c.exp_string("an int").unwrap();
@@ -48,7 +58,7 @@ fn test_send_eof() {
 
 #[test]
 fn test_interrupt() {
-    let mut c = spawn();
+    let mut c = spawn(false);
     c.exp_string("> ").unwrap();
     c.send_line("int").unwrap();
     c.exp_string("an int").unwrap();
@@ -60,7 +70,7 @@ fn test_interrupt() {
 
 #[test]
 fn test_send_empty_line() {
-    let mut c = spawn();
+    let mut c = spawn(false);
     c.exp_string("> ").unwrap();
     c.send_line("").unwrap();
     c.exp_string("> ").unwrap();
@@ -69,7 +79,7 @@ fn test_send_empty_line() {
 
 #[test]
 fn test_parse_error() {
-    let mut c = spawn();
+    let mut c = spawn(false);
     c.exp_string("> ").unwrap();
     c.send_line("int x = 5;").unwrap();
     c.exp_string("Error(s) parsing declaration:\r\n").unwrap();
@@ -93,7 +103,7 @@ fn test_read_error() {
 
 #[test]
 fn test_print_license() {
-    let mut c = spawn();
+    let mut c = spawn(false);
     c.exp_string("> ").unwrap();
     c.send_line("@license").unwrap();
     let output = c.exp_string("> ").unwrap();
@@ -104,7 +114,7 @@ fn test_print_license() {
 
 #[test]
 fn test_interactive_license_header() {
-    let mut c = spawn();
+    let mut c = spawn(false);
     let header = c.exp_string("> ").unwrap();
     kill(c);
     assert!(header.contains("This program comes with ABSOLUTELY NO WARRANTY."));
@@ -127,10 +137,54 @@ fn test_non_interactive_no_license() {
 
 #[test]
 fn test_multiple_declarations() {
-    let mut c = spawn();
+    let mut c = spawn(false);
     c.exp_string("> ").unwrap();
     c.send_line("int x; float y;").unwrap();
     c.exp_string("an int named x;\r\na float named y;").unwrap();
+    c.exp_string("> ").unwrap();
+    kill(c);
+}
+
+#[test]
+fn test_colors() {
+    let mut c = spawn(true);
+    c.exp_string("> ").unwrap();
+    c.send_line("const struct foo *func(int[10]);").unwrap();
+    c.exp_string("a function named ").unwrap();
+    c.exp_string("\x1b[32m").unwrap();
+    c.exp_string("func").unwrap();
+    c.exp_string("\x1b[0m").unwrap();
+    c.exp_string(" that takes (").unwrap();
+    c.exp_string("an array of").unwrap();
+    c.exp_string("\x1b[34m").unwrap();
+    c.exp_string("10").unwrap();
+    c.exp_string("\x1b[0m").unwrap();
+    c.exp_string(" ").unwrap();
+    c.exp_string("\x1b[33m").unwrap();
+    c.exp_string("int").unwrap();
+    c.exp_string("\x1b[0m").unwrap();
+    c.exp_string("s) and returns a pointer to a ").unwrap();
+    c.exp_string("\x1b[36m").unwrap();
+    c.exp_string("const").unwrap();
+    c.exp_string("\x1b[0m").unwrap();
+    c.exp_string(" ").unwrap();
+    c.exp_string("\x1b[35m").unwrap();
+    c.exp_string("struct foo").unwrap();
+    c.exp_string("\x1b[0m").unwrap();
+    c.exp_string("\r\n").unwrap();
+    c.exp_string("> ").unwrap();
+    kill(c);
+}
+
+#[test]
+fn test_error_color() {
+    let mut c = spawn(true);
+    c.exp_string("> ").unwrap();
+    c.send_line("int x = 5;").unwrap();
+    c.exp_string("\x1b[31m").unwrap(); // Error color
+    c.exp_string("Error(s) parsing declaration:\r\n").unwrap();
+    c.exp_string("\r\n").unwrap();
+    c.exp_string("\x1b[0m").unwrap(); // Reset color
     c.exp_string("> ").unwrap();
     kill(c);
 }

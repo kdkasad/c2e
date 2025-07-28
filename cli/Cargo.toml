@@ -17,6 +17,7 @@ c2e.workspace = true
 chumsky.workspace = true
 indoc = "2.0.6"
 rustyline = { version = "16.0.0", default-features = false }
+termcolor = "1.4.1"
 
 [dev-dependencies]
 rexpect = "0.6.2"

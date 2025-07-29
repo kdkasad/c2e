@@ -174,7 +174,7 @@ mod tests {
         let err = errs.first().unwrap();
         assert_eq!(
             err.to_string(),
-            "at 1..1: expected type qualifier or type, but found end of input"
+            "at 1..1: expected anything, type qualifier, or type, but found end of input"
         );
     }
 

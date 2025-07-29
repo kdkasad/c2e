@@ -43,7 +43,9 @@ pub enum Type<'src> {
     Primitive(PrimitiveType),
     #[display("{0} {1}")]
     Record(RecordKind, &'src str),
-    // TODO: user-defined (typedef) types
+    /// Custom type, i.e. those defined by a `typedef` declaration.
+    #[display("{0}")]
+    Custom(&'src str),
 }
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, parse_display::Display)]
@@ -74,6 +76,8 @@ pub enum TypeQualifier {
     Volatile,
     /// `restrict`
     Restrict,
+    /// `typedef`
+    Typedef,
 }
 
 /// Bit set of [type qualifiers][TypeQualifier]
@@ -161,9 +165,22 @@ pub enum Declarator<'src> {
     },
 }
 
+impl Declarator<'_> {
+    /// Returns the name of the identifier being declared, if any.
+    #[must_use]
+    pub fn name(&self) -> Option<&str> {
+        match self {
+            Declarator::Anonymous => None,
+            Declarator::Ident(name) => Some(name),
+            Declarator::Ptr(decl, _) | Declarator::Array(decl, _) => decl.name(),
+            Declarator::Function { func, .. } => func.name(),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use alloc::string::ToString;
+    use alloc::{string::ToString, vec};
 
     use super::*;
 
@@ -183,5 +200,29 @@ mod tests {
 
         qualifiers.insert(TypeQualifier::Volatile);
         assert_eq!(qualifiers.to_string(), "const volatile");
+    }
+
+    #[test]
+    fn declarator_name() {
+        let decl = Declarator::Ident("myVar");
+        assert_eq!(decl.name(), Some("myVar"));
+
+        let decl = Declarator::Ptr(
+            Box::new(Declarator::Ident("ptrVar")),
+            TypeQualifiers::default(),
+        );
+        assert_eq!(decl.name(), Some("ptrVar"));
+
+        let decl = Declarator::Array(Box::new(Declarator::Ident("arrVar")), Some(10));
+        assert_eq!(decl.name(), Some("arrVar"));
+
+        let decl = Declarator::Function {
+            func: Box::new(Declarator::Ident("funcVar")),
+            params: vec![],
+        };
+        assert_eq!(decl.name(), Some("funcVar"));
+
+        let decl = Declarator::Anonymous;
+        assert_eq!(decl.name(), None);
     }
 }

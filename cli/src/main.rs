@@ -16,7 +16,10 @@ use std::{
     process::ExitCode,
 };
 
-use c2e::{explainer::explain_declaration, parser::parser};
+use c2e::{
+    explainer::explain_declaration,
+    parser::{State, parser},
+};
 use chumsky::Parser;
 use fmt::{CliFormatter, ColorMap};
 use rustyline::{Config, DefaultEditor, error::ReadlineError};
@@ -75,6 +78,9 @@ fn main() -> ExitCode {
         termcolor::ColorChoice::Never
     });
 
+    // Persist state input lines
+    let mut parser_state = State::default();
+
     loop {
         match rl.readline("> ") {
             Ok(line) => {
@@ -105,7 +111,10 @@ fn main() -> ExitCode {
                     continue;
                 }
 
-                match parser().parse(&line).into_result() {
+                match parser()
+                    .parse_with_state(&line, &mut parser_state)
+                    .into_result()
+                {
                     Ok(decls) => match &decls[..] {
                         [decl] => {
                             let explanation = explain_declaration(decl);

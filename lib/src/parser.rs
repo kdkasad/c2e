@@ -15,11 +15,14 @@
 
 use core::str::FromStr;
 
-use alloc::{boxed::Box, vec::Vec};
+use alloc::{borrow::ToOwned, boxed::Box, format, string::String, vec::Vec};
 use chumsky::{
+    extra::Full,
+    inspector::Inspector,
     prelude::*,
     text::{ident, int, keyword},
 };
+use error::RichWrapper;
 
 use crate::ast::{
     Declaration, Declarator, PrimitiveType, QualifiedType, RecordKind, Type, TypeQualifier,
@@ -28,11 +31,36 @@ use crate::ast::{
 
 mod error;
 
-pub type Err<'src> = chumsky::extra::Err<error::RichWrapper<'src>>;
+pub type Extra<'src> = Full<RichWrapper<'src>, State, ()>;
+
+/// Parser state
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct State {
+    custom_types: Vec<String>,
+}
+
+impl<'src, I: Input<'src>> Inspector<'src, I> for State {
+    type Checkpoint = ();
+
+    fn on_token(&mut self, _token: &I::Token) {}
+
+    fn on_save<'parse>(
+        &self,
+        _cursor: &chumsky::input::Cursor<'src, 'parse, I>,
+    ) -> Self::Checkpoint {
+    }
+
+    fn on_rewind<'parse>(
+        &mut self,
+        _marker: &chumsky::input::Checkpoint<'src, 'parse, I, Self::Checkpoint>,
+    ) {
+    }
+}
 
 /// From <https://www.open-std.org/jtc1/sc22/WG14/www/docs/n1256.pdf> section 6.7.2.
 #[must_use]
-fn primitive_type_parser<'src>() -> impl Parser<'src, &'src str, PrimitiveType, Err<'src>> + Clone {
+fn primitive_type_parser<'src>() -> impl Parser<'src, &'src str, PrimitiveType, Extra<'src>> + Clone
+{
     /// Macro to generate choices from a nicer syntax.
     /// Turns something like `unsigned long int` into
     /// `keyword("unsigned").padded().then(keyword("long").padded()).then(keyword("int").padded)`.
@@ -101,9 +129,11 @@ enum SuffixInfo<'src> {
 }
 
 /// Returns a parser which parses a C declaration.
+#[allow(clippy::too_many_lines)]
 #[must_use]
-pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Declaration<'src>>, Err<'src>> {
-    recursive(|declaration| {
+pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Declaration<'src>>, Extra<'src>> {
+    // Parses a declaration. Returns `Declaration`.
+    let declaration = recursive(|declaration| {
         // Parses zero or more type qualifiers. Returns `TypeQualifiers`.
         let qualifiers = choice((
             keyword("const").to(TypeQualifier::Const),
@@ -124,6 +154,22 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Declaration<'src>>, Er
                 .map(|k| RecordKind::from_str(k).unwrap())
                 .then(ident().padded())
                 .map(|(kind, id)| Type::Record(kind, id)),
+            // Custom (typedef) type
+            ident()
+                .padded()
+                .try_map_with(|ident: &str, info| {
+                    let state: &mut State = info.state();
+                    if state.custom_types.iter().any(|ty| ty == ident) {
+                        Ok(Type::Custom(ident))
+                    } else {
+                        Err(Rich::custom(
+                            info.span(),
+                            format!("\"{ident}\" is used as a type but has not been defined"),
+                        )
+                        .into())
+                    }
+                })
+                .labelled("custom type"),
         ))
         .labelled("type");
         let qualified_type = qualifiers.clone().then(r#type).map(QualifiedType::from);
@@ -193,12 +239,30 @@ pub fn parser<'src>() -> impl Parser<'src, &'src str, Vec<Declaration<'src>>, Er
                 })
         });
 
-        // Parses a declaration. Returns `Declaration`.
         qualified_type
             .then(declarator)
             .map(Declaration::from)
             .padded()
-    })
+    });
+
+    choice((
+        // Parses a typedef declaration. Returns `Declaration`.
+        keyword("typedef")
+            .padded()
+            .ignore_then(declaration.clone())
+            .map_with(|mut decl, info| {
+                // If the typedef has a name, add it to the custom types in the state.
+                if let Some(name) = decl.declarator.name() {
+                    let state: &mut State = info.state();
+                    state.custom_types.push(name.to_owned());
+                }
+                // Add the typedef qualifier and return the declaration.
+                decl.base_type.0.insert(TypeQualifier::Typedef);
+                decl
+            }),
+        // Parses a regular declaration. Returns `Declaration`.
+        declaration,
+    ))
     .separated_by(just(';').padded().repeated().at_least(1))
     .allow_trailing()
     .collect()
@@ -595,5 +659,32 @@ mod tests {
     #[test]
     fn parse_empty() {
         assert_eq!(parser().parse("").unwrap(), vec![]);
+    }
+
+    #[test]
+    fn parse_typedef_declaration() {
+        let expected = qprimitive([TypeQualifier::Typedef], "int", ident("foo"));
+        let parser = parser();
+        assert_eq!(vec![expected], parser.parse("typedef int foo").unwrap());
+    }
+
+    #[test]
+    fn parse_typedef_reference() {
+        let expected = Declaration {
+            base_type: QualifiedType(
+                TypeQualifiers([TypeQualifier::Const].into_iter().collect()),
+                Type::Custom("foo"),
+            ),
+            declarator: ptr(ident("bar")),
+        };
+        let mut state = State {
+            custom_types: vec!["foo".to_owned()],
+        };
+        assert_eq!(
+            vec![expected],
+            parser()
+                .parse_with_state("const foo *bar", &mut state)
+                .unwrap()
+        );
     }
 }

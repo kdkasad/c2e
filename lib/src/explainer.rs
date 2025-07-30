@@ -19,7 +19,7 @@ use alloc::{
 };
 
 use crate::{
-    ast::{Declaration, Declarator, QualifiedType, Type},
+    ast::{Declaration, Declarator, QualifiedType, Type, TypeQualifier},
     color::{Highlight, HighlightedText, HighlightedTextSegment},
 };
 
@@ -49,7 +49,12 @@ fn plural_suffix_for(noun: &HighlightedTextSegment) -> &'static str {
 
 #[must_use]
 pub fn explain_declaration(decl: &Declaration) -> HighlightedText {
-    explain_declaration_impl(decl).msg
+    if decl.base_type.0.contains(TypeQualifier::Typedef) {
+        explain_typedef(decl)
+    } else {
+        explain_declaration_impl(decl)
+    }
+    .msg
 }
 
 #[derive(Debug)]
@@ -76,12 +81,6 @@ impl Explanation {
         self
     }
 
-    /// Clears `identifier_name`.
-    fn unnamed(mut self) -> Self {
-        self.identifier_name = None;
-        self
-    }
-
     /// Sets `plurality` to [`Plurality::Singular`].
     fn singular(mut self) -> Self {
         self.plurality = Plurality::Singular;
@@ -98,7 +97,7 @@ impl Explanation {
 fn format_qualified_type(qt: &QualifiedType) -> HighlightedText {
     let highlight = match qt.1 {
         Type::Primitive(_) => Highlight::PrimitiveType,
-        Type::Record(_, _) => Highlight::UserDefinedType,
+        Type::Record(_, _) | Type::Custom(_) => Highlight::UserDefinedType,
     };
     let highlighted_unqualified_type = HighlightedTextSegment::new(qt.1.to_string(), highlight);
 
@@ -116,7 +115,7 @@ fn format_qualified_type(qt: &QualifiedType) -> HighlightedText {
 }
 
 fn explain_declaration_impl(decl: &Declaration) -> Explanation {
-    let mut explanation = explain_declarator(&decl.declarator);
+    let mut explanation = explain_declarator(&decl.declarator, false);
     let highlighted_type = format_qualified_type(&decl.base_type);
     match explanation.plurality {
         Plurality::Singular => {
@@ -139,14 +138,59 @@ fn explain_declaration_impl(decl: &Declaration) -> Explanation {
     explanation
 }
 
+/// Explains a declaration whose `base_type` contains a [`typedef` qualifier][TypeQualifier::Typedef].
+///
+/// # Panics
+///
+/// Panics if the declaration's `base_type` does not contain a
+/// [`typedef` qualifier][TypeQualifier::Typedef].
+fn explain_typedef(decl: &Declaration) -> Explanation {
+    assert!(decl.base_type.0.contains(TypeQualifier::Typedef));
+
+    let mut new_type = decl.base_type;
+    new_type.0.remove(TypeQualifier::Typedef);
+    let type_str = format_qualified_type(&new_type);
+
+    let mut explanation = Explanation::new();
+    explanation.msg.push_str("a type");
+
+    let declarator_explanation = explain_declarator(&decl.declarator, true);
+
+    if let Some(name) = declarator_explanation.identifier_name {
+        explanation.msg.push_str(" named ");
+        explanation.msg.push(HighlightedTextSegment::new(
+            name,
+            Highlight::UserDefinedType,
+        ));
+    }
+
+    explanation.msg.push_str(" defined as ");
+    explanation.msg.extend(declarator_explanation.msg.0);
+
+    match declarator_explanation.plurality {
+        Plurality::Singular => {
+            let article = article_for(&type_str[0]);
+            explanation.msg.push_str(article);
+            explanation.msg.extend(type_str.0);
+        }
+        Plurality::Plural => {
+            let suffix = plural_suffix_for(type_str.last().unwrap());
+            explanation.msg.extend(type_str.0);
+            explanation.msg.push_str(suffix);
+        }
+    }
+
+    explanation
+}
+
 #[allow(clippy::too_many_lines)]
 #[must_use]
-fn explain_declarator(declarator: &Declarator) -> Explanation {
+fn explain_declarator(declarator: &Declarator, skip_name: bool) -> Explanation {
     match declarator {
         Declarator::Anonymous => Explanation::new(),
         Declarator::Ident(name) => Explanation::new().with_identifier_name((*name).to_string()),
         Declarator::Ptr(inner, qualifiers) => {
-            let mut sub = explain_declarator(inner);
+            let mut sub = explain_declarator(inner, skip_name);
             let qualifiers_text = if qualifiers.is_empty() {
                 None
             } else {
@@ -172,25 +216,31 @@ fn explain_declarator(declarator: &Declarator) -> Explanation {
                     sub.msg.push_str("pointers ");
                 }
             }
-            if let Some(name) = &sub.identifier_name {
+            if let Some(name) = &sub.identifier_name
+                && !skip_name
+            {
                 sub.msg.push_str("named ");
                 sub.msg
                     .push(HighlightedTextSegment::new(name, Highlight::Ident));
                 sub.msg.push_str(" ");
+                sub.identifier_name = None;
             }
             sub.msg.push_str("to ");
-            sub.unnamed()
+            sub
         }
         Declarator::Array(inner, len) => {
-            let mut sub = explain_declarator(inner);
+            let mut sub = explain_declarator(inner, skip_name);
             sub.msg.push_str(match sub.plurality {
                 Plurality::Singular => "an array",
                 Plurality::Plural => "arrays",
             });
-            if let Some(name) = &sub.identifier_name {
+            if let Some(name) = &sub.identifier_name
+                && !skip_name
+            {
                 sub.msg.push_str(" named ");
                 sub.msg
                     .push(HighlightedTextSegment::new(name, Highlight::Ident));
+                sub.identifier_name = None;
             }
             sub.msg.push_str(" of ");
             if let Some(len) = len {
@@ -200,11 +250,16 @@ fn explain_declarator(declarator: &Declarator) -> Explanation {
                 ));
                 sub.msg.push_str(" ");
             }
-            sub.unnamed().plural()
+            sub.plural()
         }
         Declarator::Function { func, params } => {
-            let mut sub = explain_declarator(func);
-            match (&sub.identifier_name, sub.plurality) {
+            let mut sub = explain_declarator(func, skip_name);
+            let name = if skip_name {
+                &None
+            } else {
+                &sub.identifier_name
+            };
+            match (name, sub.plurality) {
                 (None, Plurality::Singular) => sub.msg.push_str("a function that takes "),
                 (None, Plurality::Plural) => sub.msg.push_str("functions that take "),
                 (Some(name), Plurality::Singular) => {
@@ -212,6 +267,7 @@ fn explain_declarator(declarator: &Declarator) -> Explanation {
                     sub.msg
                         .push(HighlightedTextSegment::new(name, Highlight::Ident));
                     sub.msg.push_str(" that takes ");
+                    sub.identifier_name = None;
                 }
                 (Some(_), Plurality::Plural) => unreachable!("an identifier cannot be plural"),
             }
@@ -244,7 +300,7 @@ fn explain_declarator(declarator: &Declarator) -> Explanation {
                 Plurality::Singular => " and returns ",
                 Plurality::Plural => " and return ",
             });
-            sub.unnamed().singular()
+            sub.singular()
         }
     }
 }
@@ -660,6 +716,84 @@ mod tests {
                 HighlightedTextSegment::new(" pointers to ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
                 HighlightedTextSegment::new("s", Highlight::None),
+            ],
+        );
+    }
+
+    /// Anonymous typedefs are technically not valid C, but we handle them gracefully.
+    #[test]
+    fn explain_anon_typedef() {
+        run(
+            "typedef char *",
+            &[
+                HighlightedTextSegment::new("a type defined as a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+            ],
+        );
+    }
+
+    #[test]
+    fn explain_typedef() {
+        run(
+            "typedef struct point point_t",
+            &[
+                HighlightedTextSegment::new("a type named ", Highlight::None),
+                HighlightedTextSegment::new("point_t", Highlight::UserDefinedType),
+                HighlightedTextSegment::new(" defined as a ", Highlight::None),
+                HighlightedTextSegment::new("struct point", Highlight::UserDefinedType),
+            ],
+        );
+    }
+
+    #[test]
+    fn explain_pointer_typedef() {
+        run(
+            "typedef const char *string",
+            &[
+                HighlightedTextSegment::new("a type named ", Highlight::None),
+                HighlightedTextSegment::new("string", Highlight::UserDefinedType),
+                HighlightedTextSegment::new(" defined as a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("char", Highlight::PrimitiveType),
+            ],
+        );
+    }
+
+    #[test]
+    fn explain_typedef_plural_end() {
+        run(
+            "typedef int nums[]",
+            &[
+                HighlightedTextSegment::new("a type named ", Highlight::None),
+                HighlightedTextSegment::new("nums", Highlight::UserDefinedType),
+                HighlightedTextSegment::new(" defined as an array of ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
+                HighlightedTextSegment::new("s", Highlight::None),
+            ],
+        );
+    }
+
+    #[test]
+    fn explain_function_typedef() {
+        run(
+            "typedef int (*compare_t)(const void *, const void *)",
+            &[
+                HighlightedTextSegment::new("a type named ", Highlight::None),
+                HighlightedTextSegment::new("compare_t", Highlight::UserDefinedType),
+                HighlightedTextSegment::new(
+                    " defined as a pointer to a function that takes (a pointer to a ",
+                    Highlight::None,
+                ),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("void", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(" and a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new("const", Highlight::Qualifier),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("void", Highlight::PrimitiveType),
+                HighlightedTextSegment::new(") and returns an ", Highlight::None),
+                HighlightedTextSegment::new("int", Highlight::PrimitiveType),
             ],
         );
     }

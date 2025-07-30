@@ -27,11 +27,36 @@
                 <div
                     class="flex-1 p-4 sm:p-8 flex flex-col overflow-hidden border-b border-b-neutral-700 lg:border-b-0 lg:border-r lg:border-r-neutral-700"
                 >
-                    <label
-                        for="code-input"
-                        class="mb-4 text-xs sm:text-sm font-semibold uppercase tracking-wider"
-                        >Input</label
-                    >
+                    <div class="mb-4 flex items-center gap-2">
+                        <label
+                            for="code-input"
+                            class="text-xs sm:text-sm font-semibold uppercase tracking-wider"
+                        >
+                            Input
+                        </label>
+                        <button
+                            popovertarget="syntax-tooltip"
+                            class="cursor-pointer"
+                        >
+                            <svg
+                                class="size-4 md:size-5"
+                                xmlns="http://www.w3.org/2000/svg"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                class="lucide lucide-circle-question-mark-icon lucide-circle-question-mark"
+                            >
+                                <circle cx="12" cy="12" r="10" />
+                                <path
+                                    d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"
+                                />
+                                <path d="M12 17h.01" />
+                            </svg>
+                        </button>
+                    </div>
                     <textarea
                         id="input"
                         class="flex-1 w-full sm:text-xl bg-transparent resize-none focus:outline-none text-neutral-200 disabled:text-neutral-400 placeholder-neutral-600"
@@ -73,6 +98,60 @@ Loading JavaScript...</pre
                     <span id="version"></span>
                 </a>
             </footer>
+            <div
+                id="syntax-tooltip"
+                role="tooltip"
+                popover
+                class="absolute top-[50vh] left-[50vw] -translate-x-1/2 -translate-y-1/2 text-sm sm:text-base backdrop:bg-neutral-900 backdrop:opacity-70 bg-neutral-900 text-neutral-400 p-4 border border-neutral-700 shadow-xl min-w-xs max-w-md max-h-4/5 overflow-y-auto"
+            >
+                <div class="flex flex-row items-center justify-between gap-4">
+                    <h2 class="font-bold text-sm uppercase text-neutral-300">
+                        Syntax guide
+                    </h2>
+                    <button
+                        popovertarget="syntax-tooltip"
+                        popoveraction="close"
+                        class="size-4 cursor-pointer"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="2"
+                            stroke-linecap="round"
+                            stroke-linejoin="round"
+                            class="lucide lucide-x-icon lucide-x"
+                        >
+                            <path d="M18 6 6 18" />
+                            <path d="m6 6 12 12" />
+                        </svg>
+                    </button>
+                </div>
+                <p class="mt-3">
+                    Enter C variable/function/typedef declarations (<strong
+                        >not definitions</strong
+                    >) to get an explanation of what they mean. Multiple
+                    declarations can be entered at once, separated by
+                    semicolons.
+                </p>
+                <p class="mt-3">
+                    Since this tool just parses the declarations and isn't a
+                    full compiler, it may accept some syntax that isn't valid in
+                    a real C program. For example, it will accept
+                    <code>typedef</code> declarations without a name, which is
+                    not valid in C.
+                </p>
+                <p class="mt-3">
+                    If you encounter any issues, please
+                    <a
+                        class="underline"
+                        href="https://github.com/kdkasad/c2e/issues/new"
+                    >
+                        report them in the GitHub repository</a
+                    >.
+                </p>
+            </div>
         </div>
         <script type="module" src="/src/main.ts"></script>
     </body>

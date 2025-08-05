@@ -28,7 +28,7 @@ fn spawn(color: bool) -> PtySession {
     let path = env!("CARGO_BIN_EXE_c2e");
     let mut cmd = Command::new(path);
     if color {
-        cmd.env_clear().env("TERM", "xterm-256color");
+        cmd.env("TERM", "xterm-256color");
     }
     spawn_with_options(
         cmd,
@@ -150,12 +150,20 @@ fn test_colors() {
     let mut c = spawn(true);
     c.exp_string("> ").unwrap();
     c.send_line("const struct foo *func(int[10]);").unwrap();
-    c.exp_string("a function named ").unwrap();
+    c.exp_string("a ").unwrap();
     c.exp_string("\x1b[32m").unwrap();
+    c.exp_string("function").unwrap();
+    c.exp_string("\x1b[0m").unwrap();
+    c.exp_string(" named ").unwrap();
+    c.exp_string("\x1b[31m").unwrap();
     c.exp_string("func").unwrap();
     c.exp_string("\x1b[0m").unwrap();
     c.exp_string(" that takes (").unwrap();
-    c.exp_string("an array of").unwrap();
+    c.exp_string("an ").unwrap();
+    c.exp_string("\x1b[32m").unwrap();
+    c.exp_string("array").unwrap();
+    c.exp_string("\x1b[0m").unwrap();
+    c.exp_string(" of").unwrap();
     c.exp_string("\x1b[34m").unwrap();
     c.exp_string("10").unwrap();
     c.exp_string("\x1b[0m").unwrap();
@@ -163,7 +171,11 @@ fn test_colors() {
     c.exp_string("\x1b[33m").unwrap();
     c.exp_string("int").unwrap();
     c.exp_string("\x1b[0m").unwrap();
-    c.exp_string("s) and returns a pointer to a ").unwrap();
+    c.exp_string("s) and returns a ").unwrap();
+    c.exp_string("\x1b[32m").unwrap();
+    c.exp_string("pointer").unwrap();
+    c.exp_string("\x1b[0m").unwrap();
+    c.exp_string(" to a ").unwrap();
     c.exp_string("\x1b[36m").unwrap();
     c.exp_string("const").unwrap();
     c.exp_string("\x1b[0m").unwrap();

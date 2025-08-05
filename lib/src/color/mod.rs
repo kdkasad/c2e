@@ -21,6 +21,8 @@ pub enum Highlight {
     Ident,
     /// Highlight a number literal
     Number,
+    /// A quasi-keyword, like `pointer` or `array`
+    QuasiKeyword,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

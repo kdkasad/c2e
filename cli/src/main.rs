@@ -31,7 +31,7 @@ mod fmt;
 macro_rules! copyright_header {
     () => {
         concat!(
-            env!("CARGO_PKG_NAME"),
+            env!("CARGO_BIN_NAME"),
             " ",
             env!("CARGO_PKG_VERSION"),
             "\n",

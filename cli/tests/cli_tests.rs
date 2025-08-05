@@ -28,7 +28,7 @@ fn spawn(color: bool) -> PtySession {
     let path = env!("CARGO_BIN_EXE_c2e");
     let mut cmd = Command::new(path);
     if color {
-        cmd.env_clear().env("TERM", "xterm-256color");
+        cmd.env("TERM", "xterm-256color");
     }
     spawn_with_options(
         cmd,

@@ -1,8 +1,9 @@
 # c2e — C → English translator
 
-[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/kdkasad/c2e/ci.yml?logo=github&label=CI)](https://github.com/kdkasad/c2e/actions/workflows/ci.yml)
-![GitHub License](https://img.shields.io/github/license/kdkasad/c2e?color=blue)
-[![Crates.io Version](https://img.shields.io/crates/v/c2e?logo=rust)](https://crates.io/crates/c2e)
+[![GitHub Actions Workflow Status bagde](https://img.shields.io/github/actions/workflow/status/kdkasad/c2e/ci.yml?logo=github&label=CI)](https://github.com/kdkasad/c2e/actions/workflows/ci.yml)
+[![Codecov badge](https://img.shields.io/codecov/c/github/kdkasad/c2e?logo=codecov&color=%23F01F7A)](https://app.codecov.io/gh/kdkasad/c2e)
+[![License badge](https://img.shields.io/github/license/kdkasad/c2e?color=blue)](COPYING)
+[![Crates.io Version badge](https://img.shields.io/crates/v/c2e?logo=rust)](https://crates.io/crates/c2e)
 
 
 

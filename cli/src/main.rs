@@ -46,8 +46,9 @@ const COLOR_MAP: ColorMap = ColorMap {
     qualifier: Color::Cyan,
     primitive_type: Color::Yellow,
     user_defined_type: Color::Magenta,
-    identifier: Color::Green,
+    identifier: Color::Red,
     number: Color::Blue,
+    quasi_keyword: Color::Green,
 };
 
 fn main() -> ExitCode {

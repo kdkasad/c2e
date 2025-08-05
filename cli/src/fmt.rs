@@ -10,6 +10,7 @@ pub struct ColorMap {
     pub user_defined_type: Color,
     pub identifier: Color,
     pub number: Color,
+    pub quasi_keyword: Color,
 }
 
 impl ColorMap {
@@ -21,6 +22,7 @@ impl ColorMap {
             Highlight::UserDefinedType => Some(self.user_defined_type),
             Highlight::Ident => Some(self.identifier),
             Highlight::Number => Some(self.number),
+            Highlight::QuasiKeyword => Some(self.quasi_keyword),
             _ => None,
         }
     }

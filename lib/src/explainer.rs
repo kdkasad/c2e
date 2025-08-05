@@ -206,16 +206,23 @@ fn explain_declarator(declarator: &Declarator, skip_name: bool) -> Explanation {
                         sub.msg.push(qualifiers_text);
                         sub.msg.push_str(" ");
                     }
-                    sub.msg.push_str("pointer ");
+                    sub.msg.push(HighlightedTextSegment::new(
+                        "pointer",
+                        Highlight::QuasiKeyword,
+                    ));
                 }
                 Plurality::Plural => {
                     if let Some(qualifiers_text) = qualifiers_text {
                         sub.msg.push(qualifiers_text);
                         sub.msg.push_str(" ");
                     }
-                    sub.msg.push_str("pointers ");
+                    sub.msg.push(HighlightedTextSegment::new(
+                        "pointers",
+                        Highlight::QuasiKeyword,
+                    ));
                 }
             }
+            sub.msg.push_str(" ");
             if let Some(name) = &sub.identifier_name
                 && !skip_name
             {
@@ -230,10 +237,25 @@ fn explain_declarator(declarator: &Declarator, skip_name: bool) -> Explanation {
         }
         Declarator::Array(inner, len) => {
             let mut sub = explain_declarator(inner, skip_name);
-            sub.msg.push_str(match sub.plurality {
-                Plurality::Singular => "an array",
-                Plurality::Plural => "arrays",
-            });
+            match sub.plurality {
+                Plurality::Singular => {
+                    sub.msg.push_str("an ");
+                    sub.msg.push(HighlightedTextSegment::new(
+                        "array",
+                        Highlight::QuasiKeyword,
+                    ));
+                }
+                Plurality::Plural => {
+                    sub.msg.push(HighlightedTextSegment::new(
+                        "arrays",
+                        Highlight::QuasiKeyword,
+                    ));
+                }
+            }
+            // sub.msg.push_str(match sub.plurality {
+            //     Plurality::Singular => "an array",
+            //     Plurality::Plural => "arrays",
+            // });
             if let Some(name) = &sub.identifier_name
                 && !skip_name
             {
@@ -260,10 +282,28 @@ fn explain_declarator(declarator: &Declarator, skip_name: bool) -> Explanation {
                 &sub.identifier_name
             };
             match (name, sub.plurality) {
-                (None, Plurality::Singular) => sub.msg.push_str("a function that takes "),
-                (None, Plurality::Plural) => sub.msg.push_str("functions that take "),
+                (None, Plurality::Singular) => {
+                    sub.msg.push_str("a ");
+                    sub.msg.push(HighlightedTextSegment::new(
+                        "function",
+                        Highlight::QuasiKeyword,
+                    ));
+                    sub.msg.push_str(" that takes ");
+                }
+                (None, Plurality::Plural) => {
+                    sub.msg.push(HighlightedTextSegment::new(
+                        "functions",
+                        Highlight::QuasiKeyword,
+                    ));
+                    sub.msg.push_str(" that take ");
+                }
                 (Some(name), Plurality::Singular) => {
-                    sub.msg.push_str("a function named ");
+                    sub.msg.push_str("a ");
+                    sub.msg.push(HighlightedTextSegment::new(
+                        "function",
+                        Highlight::QuasiKeyword,
+                    ));
+                    sub.msg.push_str(" named ");
                     sub.msg
                         .push(HighlightedTextSegment::new(name, Highlight::Ident));
                     sub.msg.push_str(" that takes ");
@@ -385,7 +425,9 @@ mod tests {
         run(
             "int *p",
             &[
-                HighlightedTextSegment::new("a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("p", Highlight::Ident),
                 HighlightedTextSegment::new(" to an ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
@@ -398,7 +440,9 @@ mod tests {
         run(
             "int arr[]",
             &[
-                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("arr", Highlight::Ident),
                 HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
@@ -413,7 +457,9 @@ mod tests {
         run(
             "int arr[10]",
             &[
-                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("arr", Highlight::Ident),
                 HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("10", Highlight::Number),
@@ -429,11 +475,15 @@ mod tests {
         run(
             "int arr[10][20]",
             &[
-                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("arr", Highlight::Ident),
                 HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("10", Highlight::Number),
-                HighlightedTextSegment::new(" arrays of ", Highlight::None),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("arrays", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("20", Highlight::Number),
                 HighlightedTextSegment::new(" ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
@@ -447,9 +497,15 @@ mod tests {
         run(
             "char ***p",
             &[
-                HighlightedTextSegment::new("a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("p", Highlight::Ident),
-                HighlightedTextSegment::new(" to a pointer to a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
             ],
         );
@@ -460,11 +516,15 @@ mod tests {
         run(
             "int *arr[10]",
             &[
-                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("arr", Highlight::Ident),
                 HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("10", Highlight::Number),
-                HighlightedTextSegment::new(" pointers to ", Highlight::None),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("pointers", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
                 HighlightedTextSegment::new("s", Highlight::None),
             ],
@@ -476,9 +536,13 @@ mod tests {
         run(
             "int (*p)[10]",
             &[
-                HighlightedTextSegment::new("a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("p", Highlight::Ident),
-                HighlightedTextSegment::new(" to an array of ", Highlight::None),
+                HighlightedTextSegment::new(" to an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("10", Highlight::Number),
                 HighlightedTextSegment::new(" ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
@@ -496,7 +560,9 @@ mod tests {
         run(
             "void func()",
             &[
-                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("function", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("func", Highlight::Ident),
                 HighlightedTextSegment::new(
                     " that takes no parameters and returns a ",
@@ -512,16 +578,23 @@ mod tests {
         run(
             "char *(*(*bar)[5])(int)",
             &[
-                HighlightedTextSegment::new("a pointer named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("bar", Highlight::Ident),
-                HighlightedTextSegment::new(" to an array of ", Highlight::None),
+                HighlightedTextSegment::new(" to an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("5", Highlight::Number),
-                HighlightedTextSegment::new(
-                    " pointers to functions that take (an ",
-                    Highlight::None,
-                ),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("pointers", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to ", Highlight::None),
+                HighlightedTextSegment::new("functions", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" that take (an ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
-                HighlightedTextSegment::new(") and return a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new(") and return a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
             ],
         );
@@ -556,7 +629,9 @@ mod tests {
             &[
                 HighlightedTextSegment::new("a ", Highlight::None),
                 HighlightedTextSegment::new("const restrict", Highlight::Qualifier),
-                HighlightedTextSegment::new(" pointer named ", Highlight::None),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("x", Highlight::Ident),
                 HighlightedTextSegment::new(" to an ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
@@ -567,7 +642,9 @@ mod tests {
             &[
                 HighlightedTextSegment::new("a ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
-                HighlightedTextSegment::new(" pointer named ", Highlight::None),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("str", Highlight::Ident),
                 HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
@@ -595,9 +672,13 @@ mod tests {
         run(
             "int foo(const char *)",
             &[
-                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("function", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("foo", Highlight::Ident),
-                HighlightedTextSegment::new(" that takes (a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new(" that takes (a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
                 HighlightedTextSegment::new(" ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
@@ -612,9 +693,13 @@ mod tests {
         run(
             "int foo(const char *bar)",
             &[
-                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("function", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("foo", Highlight::Ident),
-                HighlightedTextSegment::new(" that takes (a pointer named ", Highlight::None),
+                HighlightedTextSegment::new(" that takes (a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("bar", Highlight::Ident),
                 HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
@@ -631,10 +716,13 @@ mod tests {
         run(
             "int (*)(const char *)",
             &[
-                HighlightedTextSegment::new(
-                    "a pointer to a function that takes (a pointer to a ",
-                    Highlight::None,
-                ),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
+                HighlightedTextSegment::new("function", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" that takes (a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
                 HighlightedTextSegment::new(" ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
@@ -649,7 +737,9 @@ mod tests {
         run(
             "int add(int a, int b)",
             &[
-                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("function", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("add", Highlight::Ident),
                 HighlightedTextSegment::new(" that takes (an ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
@@ -670,13 +760,17 @@ mod tests {
         run(
             "void print(int a, char *b, float c)",
             &[
-                HighlightedTextSegment::new("a function named ", Highlight::None),
+                HighlightedTextSegment::new("a ", Highlight::None),
+                HighlightedTextSegment::new("function", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("print", Highlight::Ident),
                 HighlightedTextSegment::new(" that takes (an ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
                 HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("a", Highlight::Ident),
-                HighlightedTextSegment::new(", a pointer named ", Highlight::None),
+                HighlightedTextSegment::new(", a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("b", Highlight::Ident),
                 HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
@@ -695,7 +789,9 @@ mod tests {
         run(
             "struct point p[]",
             &[
-                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("p", Highlight::Ident),
                 HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("struct point", Highlight::UserDefinedType),
@@ -709,11 +805,15 @@ mod tests {
         run(
             "char *const p[]",
             &[
-                HighlightedTextSegment::new("an array named ", Highlight::None),
+                HighlightedTextSegment::new("an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" named ", Highlight::None),
                 HighlightedTextSegment::new("p", Highlight::Ident),
                 HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
-                HighlightedTextSegment::new(" pointers to ", Highlight::None),
+                HighlightedTextSegment::new(" ", Highlight::None),
+                HighlightedTextSegment::new("pointers", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
                 HighlightedTextSegment::new("s", Highlight::None),
             ],
@@ -726,7 +826,9 @@ mod tests {
         run(
             "typedef char *",
             &[
-                HighlightedTextSegment::new("a type defined as a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new("a type defined as a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
             ],
         );
@@ -752,7 +854,9 @@ mod tests {
             &[
                 HighlightedTextSegment::new("a type named ", Highlight::None),
                 HighlightedTextSegment::new("string", Highlight::UserDefinedType),
-                HighlightedTextSegment::new(" defined as a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new(" defined as a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
                 HighlightedTextSegment::new(" ", Highlight::None),
                 HighlightedTextSegment::new("char", Highlight::PrimitiveType),
@@ -767,7 +871,9 @@ mod tests {
             &[
                 HighlightedTextSegment::new("a type named ", Highlight::None),
                 HighlightedTextSegment::new("nums", Highlight::UserDefinedType),
-                HighlightedTextSegment::new(" defined as an array of ", Highlight::None),
+                HighlightedTextSegment::new(" defined as an ", Highlight::None),
+                HighlightedTextSegment::new("array", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" of ", Highlight::None),
                 HighlightedTextSegment::new("int", Highlight::PrimitiveType),
                 HighlightedTextSegment::new("s", Highlight::None),
             ],
@@ -781,14 +887,19 @@ mod tests {
             &[
                 HighlightedTextSegment::new("a type named ", Highlight::None),
                 HighlightedTextSegment::new("compare_t", Highlight::UserDefinedType),
-                HighlightedTextSegment::new(
-                    " defined as a pointer to a function that takes (a pointer to a ",
-                    Highlight::None,
-                ),
+                HighlightedTextSegment::new(" defined as a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
+                HighlightedTextSegment::new("function", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" that takes (a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
                 HighlightedTextSegment::new(" ", Highlight::None),
                 HighlightedTextSegment::new("void", Highlight::PrimitiveType),
-                HighlightedTextSegment::new(" and a pointer to a ", Highlight::None),
+                HighlightedTextSegment::new(" and a ", Highlight::None),
+                HighlightedTextSegment::new("pointer", Highlight::QuasiKeyword),
+                HighlightedTextSegment::new(" to a ", Highlight::None),
                 HighlightedTextSegment::new("const", Highlight::Qualifier),
                 HighlightedTextSegment::new(" ", Highlight::None),
                 HighlightedTextSegment::new("void", Highlight::PrimitiveType),

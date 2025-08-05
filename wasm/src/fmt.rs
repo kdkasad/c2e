@@ -10,6 +10,7 @@ pub struct ClassMapping {
     pub user_defined_type: Option<String>,
     pub identifier: Option<String>,
     pub number: Option<String>,
+    pub quasi_keyword: Option<String>,
 }
 
 #[wasm_bindgen]
@@ -21,6 +22,7 @@ impl ClassMapping {
         user_defined_type: Option<String>,
         identifier: Option<String>,
         number: Option<String>,
+        quasi_keyword: Option<String>,
     ) -> Self {
         Self {
             qualifier,
@@ -28,6 +30,7 @@ impl ClassMapping {
             user_defined_type,
             identifier,
             number,
+            quasi_keyword,
         }
     }
 }
@@ -66,6 +69,7 @@ impl Formatter for HtmlFormatter {
                     Highlight::UserDefinedType => self.colors.user_defined_type.as_deref(),
                     Highlight::Ident => self.colors.identifier.as_deref(),
                     Highlight::Number => self.colors.number.as_deref(),
+                    Highlight::QuasiKeyword => self.colors.quasi_keyword.as_deref(),
                     _ => None,
                 };
 
@@ -99,6 +103,7 @@ mod tests {
             Some("user-defined-type".to_string()),
             None,
             Some("number".to_string()),
+            Some("quasi".to_string()),
         ));
 
         let text = HighlightedText(vec![
@@ -113,6 +118,8 @@ mod tests {
             HighlightedTextSegment::new("udt", Highlight::UserDefinedType),
             HighlightedTextSegment::new("", Highlight::None),
             HighlightedTextSegment::new("\n", Highlight::None),
+            HighlightedTextSegment::new("lksjdf", Highlight::QuasiKeyword),
+            HighlightedTextSegment::new("\n", Highlight::None),
         ]);
 
         let mut output = String::new();
@@ -125,6 +132,7 @@ id
 <span class="qualifier">tq</span>
 <span class="number">10</span>
 <span class="user-defined-type">udt</span>
+<span class="quasi">lksjdf</span>
 "#
         );
     }

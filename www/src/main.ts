@@ -54,6 +54,7 @@ Promise.race([initExplainer(), rejectAfter(wasmLoadTimeoutMS)])
             "text-purple-300", // user-defined type
             "text-rose-300", // identifier
             "text-orange-300", // number
+            "text-emerald-300", // quasi-keyword
         );
         // Create a formatter
         const formatter = new HtmlFormatter(mapping);

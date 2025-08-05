@@ -65,6 +65,7 @@ mod tests {
             user_defined_type: Some("u".to_string()),
             identifier: Some("i".to_string()),
             number: Some("n".to_string()),
+            quasi_keyword: Some("qk".to_string()),
         };
         HtmlFormatter::new(mapping)
     }
@@ -80,7 +81,7 @@ mod tests {
         let output = explain(&get_formatter(), "int main()").unwrap();
         assert_eq!(
             output,
-            r#"a function named <span class="i">main</span> that takes no parameters and returns an <span class="p">int</span>"#
+            r#"a <span class="qk">function</span> named <span class="i">main</span> that takes no parameters and returns an <span class="p">int</span>"#
         );
     }
 
@@ -89,9 +90,9 @@ mod tests {
         let output = explain(&get_formatter(), "int main(); int foo(int a);").unwrap();
         assert_eq!(
             output,
-            r#"a function named <span class="i">main</span> that takes no parameters and returns an <span class="p">int</span>;
+            r#"a <span class="qk">function</span> named <span class="i">main</span> that takes no parameters and returns an <span class="p">int</span>;
 
-a function named <span class="i">foo</span> that takes (an <span class="p">int</span> named <span class="i">a</span>) and returns an <span class="p">int</span>;"#
+a <span class="qk">function</span> named <span class="i">foo</span> that takes (an <span class="p">int</span> named <span class="i">a</span>) and returns an <span class="p">int</span>;"#
         );
     }
 

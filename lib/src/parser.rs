@@ -333,7 +333,7 @@ mod tests {
         qptr([], val)
     }
 
-    fn ident(val: &str) -> Declarator {
+    fn ident(val: &str) -> Declarator<'_> {
         Declarator::Ident(val)
     }
 

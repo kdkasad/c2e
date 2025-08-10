@@ -150,7 +150,7 @@ jobs:
           --profile ci
 
       - name: Generate coverage reports
-        if: (!cancelled()) # Generate reports even if tests failed
+        if: ${{ !cancelled() }} # Generate reports even if tests failed
         shell: bash
         run: |
           cargo llvm-cov report --html
@@ -158,16 +158,23 @@ jobs:
 
       - name: Publish test results
         uses: EnricoMi/publish-unit-test-result-action@v2
-        if: (!cancelled()) # Upload reports even if tests failed
+        if: ${{ !cancelled() }} # Upload reports even if tests failed
         with:
           check_run: false
           comment_mode: ${{ (github.event_name == 'pull_request') && 'always' || 'off' }}
           files: |
             target/nextest/ci/junit.xml
 
+      - name: Upload test results to Codecov
+        if: ${{ !cancelled() }} # Upload reports even if tests failed
+        uses: codecov/test-results-action@v1
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          file: target/nextest/ci/junit.xml
+
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
-        if: (!cancelled()) # Upload reports even if tests failed
+        if: ${{ !cancelled() }} # Upload reports even if tests failed
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           files: target/llvm-cov/codecov.json
@@ -175,7 +182,7 @@ jobs:
 
       - name: Upload HTML coverage report
         uses: actions/upload-artifact@v4
-        if: (!cancelled()) # Upload reports even if tests failed
+        if: ${{ !cancelled() }} # Upload reports even if tests failed
         with:
           name: coverage-html
           path: target/llvm-cov/html/
